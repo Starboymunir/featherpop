@@ -30,12 +30,15 @@ export function MsFeatherPopAvatar({
   size?: number;
   speaking?: boolean;
 }) {
-  const h = Math.round((size * 260) / 220);
+  // Sprite frames are square (360×360 after ffmpeg padding), so the
+  // container is square too. The original 220×260 aspect was for the
+  // hand-drawn inline SVG only — passing it to the sprite caused
+  // horizontal compression.
   return (
     <AnimatedAvatar
       baseSrc={`/media/avatars/feather-pop-${pose}`}
       width={size}
-      height={h}
+      height={size}
       alt="Ms. Feather Pop"
       className={`fp-avatar-wrap fp-pose-${pose}`}
       fallback={<InlineSvgAvatar pose={pose} size={size} speaking={speaking} />}

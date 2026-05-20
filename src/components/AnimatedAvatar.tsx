@@ -98,7 +98,7 @@ export function AnimatedAvatar({
           backgroundImage: `url(${baseSrc}.sprite.png)`,
           backgroundRepeat: "no-repeat",
           backgroundSize: `${SPRITE_FRAMES * 100}% 100%`,
-          animation: `sprite-play-${SPRITE_FRAMES} ${SPRITE_DURATION_S}s steps(${SPRITE_FRAMES}) infinite`,
+          animation: `sprite-play-${SPRITE_FRAMES} ${SPRITE_DURATION_S}s steps(${SPRITE_FRAMES}, jump-none) infinite`,
           // hint to the browser for crisp pixel-snapping
           imageRendering: "auto",
           ...style,

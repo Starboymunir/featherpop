@@ -1,10 +1,10 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Camera, Gamepad2, Gift, HelpCircle, Home, Wallet } from "lucide-react";
 import { SoundToggle } from "@/components/SoundToggle";
-import { MsFeatherPopAvatar } from "@/components/MsFeatherPopAvatar";
 
 const links = [
   { href: "/", label: "Home", icon: Home },
@@ -22,7 +22,14 @@ export function BrandBar() {
       <div className="brandbar-inner">
         <Link href="/" className="brand-mark" aria-label="Ms. Feather Pop home">
           <span className="brand-avatar">
-            <MsFeatherPopAvatar pose="wave" size={48} />
+            <Image
+              src="/media/avatars/feather-pop-head.png"
+              alt=""
+              width={48}
+              height={48}
+              priority
+              unoptimized
+            />
           </span>
           <span>
             <strong>Ms. Feather Pop</strong>
