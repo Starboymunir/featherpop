@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
-  CheckCircle2,
+  Gamepad2,
   Lightbulb,
+  Music2,
   Play,
   RefreshCw,
-  SkipForward,
   Sparkles,
+  Timer,
   Trophy,
   Volume2,
   XCircle,
@@ -21,41 +22,59 @@ import {
   readProgress,
   saveProgress,
 } from "@/lib/player";
-import { buzz, ding, fanfare, speak } from "@/lib/audio";
+import {
+  buzz,
+  childOoh,
+  ding,
+  fanfare,
+  isMusicEnabled,
+  kidCrowdCheer,
+  pop,
+  setMusicEnabled,
+  speak,
+  startMusic,
+  stopMusic,
+  stopSpeaking,
+  tick,
+  urgentTick,
+} from "@/lib/audio";
 import { Mascot, MascotMood } from "@/components/Mascot";
+import { KidAvatar } from "@/components/KidAvatar";
 
 type Phase = "video" | "reveal" | "build" | "result";
-type SlotState = "neutral" | "correct" | "present" | "absent";
 
-const CONFETTI_COLORS = [
-  "var(--pink)",
-  "var(--magenta)",
-  "var(--purple)",
-  "var(--gold)",
-  "var(--mint)",
-  "var(--sky-4)",
-];
+const ROUND_SECONDS = 120; // 2 minutes
 
 export function QuestExperience({ challenge }: { challenge: Challenge }) {
   const hasIntro = !!challenge.introVideoUrl;
   const [videoOk, setVideoOk] = useState<boolean | null>(hasIntro ? null : false);
   const [phase, setPhase] = useState<Phase>(hasIntro ? "video" : "reveal");
-  const [slots, setSlots] = useState<(number | null)[]>(() =>
-    Array.from({ length: challenge.targetWord.length }, () => null),
-  );
-  const [slotStates, setSlotStates] = useState<SlotState[]>(() =>
-    Array.from({ length: challenge.targetWord.length }, () => "neutral"),
-  );
+  const [selection, setSelection] = useState<number[]>([]);
+  const [shakeKey, setShakeKey] = useState(0);
   const [showHint, setShowHint] = useState(false);
-  const [attempts, setAttempts] = useState(0);
-  const [foundBonuses, setFoundBonuses] = useState<string[]>([]);
+  const [foundWords, setFoundWords] = useState<string[]>([]);
+  const [poppedWord, setPoppedWord] = useState<string | null>(null);
+  const [showReward, setShowReward] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(ROUND_SECONDS);
+  const [running, setRunning] = useState(false);
+  const [musicOn, setMusicOn] = useState(true);
   const [mood, setMood] = useState<MascotMood>("idle");
   const [mascotMessage, setMascotMessage] = useState<string | undefined>();
   const [mascotNudge, setMascotNudge] = useState(0);
   const [progress, setProgress] = useState<PlayerProgress>(() => readProgress());
   const completed = progress.completedChallengeSlugs.includes(challenge.slug);
 
-  // Probe whether the per-quest video actually exists
+  // All puzzle words: target + bonus words (uppercase, deduped)
+  const wordList = useMemo(() => {
+    const set = new Set<string>([challenge.targetWord.toUpperCase()]);
+    challenge.bonusWords.forEach((w) => set.add(w.toUpperCase()));
+    return Array.from(set).sort((a, b) => a.length - b.length || a.localeCompare(b));
+  }, [challenge]);
+
+  const targetUpper = challenge.targetWord.toUpperCase();
+  const wonTarget = foundWords.includes(targetUpper);
+
+  /* -------- Video probe -------- */
   useEffect(() => {
     if (!hasIntro) return;
     let cancelled = false;
@@ -76,7 +95,7 @@ export function QuestExperience({ challenge }: { challenge: Challenge }) {
     };
   }, [hasIntro, challenge.introVideoUrl]);
 
-  // Reveal phase voice + auto-advance
+  /* -------- Reveal phase: speak letter, then auto-advance -------- */
   useEffect(() => {
     if (phase !== "reveal") return;
     speak(`The letter is ${challenge.mainLetter}.`);
@@ -84,121 +103,123 @@ export function QuestExperience({ challenge }: { challenge: Challenge }) {
     return () => window.clearTimeout(timer);
   }, [phase, challenge.mainLetter]);
 
-  // Idle nudge: if user is stuck mid-build, encourage
+  /* -------- Music + music preference -------- */
+  useEffect(() => {
+    setMusicOn(isMusicEnabled());
+  }, []);
+  useEffect(() => {
+    if (phase === "build" && musicOn) startMusic();
+    else stopMusic();
+    return () => stopMusic();
+  }, [phase, musicOn]);
+
+  /* -------- Timer -------- */
+  useEffect(() => {
+    if (phase !== "build" || !running) return;
+    const id = window.setInterval(() => {
+      setSecondsLeft((s) => {
+        const next = Math.max(0, s - 1);
+        if (next === 0) {
+          stopMusic();
+          setRunning(false);
+          setPhase("result");
+          fanfare();
+        } else if (next <= 10) urgentTick();
+        else if (next % 10 === 0) tick();
+        return next;
+      });
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [phase, running]);
+
+  // Auto-start timer on entering build
+  useEffect(() => {
+    if (phase === "build" && !running && secondsLeft === ROUND_SECONDS) {
+      setRunning(true);
+    }
+  }, [phase, running, secondsLeft]);
+
+  /* -------- Idle nudge -------- */
   useEffect(() => {
     if (phase !== "build") return;
-    if (slots.some((s) => s !== null) && slots.some((s) => s === null)) {
-      const t = window.setTimeout(() => {
-        if (mood === "idle" || mood === "think") {
-          setMood("think");
-          setMascotMessage(undefined);
-          setMascotNudge((n) => n + 1);
-        }
-      }, 8000);
-      return () => window.clearTimeout(t);
-    }
-  }, [slots, phase, mood]);
-
-  // Built word = contiguous filled prefix (letters always fill firstEmpty,
-  // so the leading run of non-null slots IS what the player has spelled).
-  const builtWord = useMemo(() => {
-    let out = "";
-    for (const idx of slots) {
-      if (idx == null) break;
-      out += challenge.letters[idx];
-    }
-    return out;
-  }, [slots, challenge.letters]);
-  const filledCount = builtWord.length;
-  const isFull = filledCount === challenge.targetWord.length;
-  const canSubmit = filledCount >= 2;
-  const usedIndexes = slots.filter((s): s is number => s !== null);
-
-  function placeLetter(letterIndex: number) {
-    if (usedIndexes.includes(letterIndex)) return;
-    const firstEmpty = slots.findIndex((s) => s === null);
-    if (firstEmpty === -1) return;
-    const next = [...slots];
-    next[firstEmpty] = letterIndex;
-    setSlots(next);
-    resetSlotStates(next.length);
-    ding(660 + firstEmpty * 60, 90);
-  }
-
-  function clearSlot(slotIdx: number) {
-    if (slots[slotIdx] === null) return;
-    const next = [...slots];
-    next[slotIdx] = null;
-    setSlots(next);
-    resetSlotStates(next.length);
-  }
-
-  function clearAll() {
-    setSlots(Array.from({ length: challenge.targetWord.length }, () => null));
-    resetSlotStates(challenge.targetWord.length);
-  }
-
-  function resetSlotStates(n: number) {
-    setSlotStates(Array.from({ length: n }, () => "neutral"));
-  }
-
-  function evaluate(guess: string, target: string): SlotState[] {
-    const g = guess.toUpperCase().split("");
-    const t = target.toUpperCase().split("");
-    const out: SlotState[] = g.map(() => "absent");
-    const counts: Record<string, number> = {};
-    t.forEach((ch) => (counts[ch] = (counts[ch] ?? 0) + 1));
-    g.forEach((ch, i) => {
-      if (ch === t[i]) {
-        out[i] = "correct";
-        counts[ch] -= 1;
+    const t = window.setTimeout(() => {
+      if (selection.length === 0 && mood === "idle") {
+        setMood("think");
+        setMascotNudge((n) => n + 1);
       }
-    });
-    g.forEach((ch, i) => {
-      if (out[i] === "correct") return;
-      if ((counts[ch] ?? 0) > 0) {
-        out[i] = "present";
-        counts[ch] -= 1;
+    }, 12000);
+    return () => window.clearTimeout(t);
+  }, [selection, phase, mood, foundWords.length]);
+
+  /* -------- Build word from selection -------- */
+  const builtWord = useMemo(
+    () => selection.map((i) => challenge.letters[i]).join(""),
+    [selection, challenge.letters],
+  );
+
+  function toggleLetter(idx: number) {
+    setSelection((prev) => {
+      if (prev.includes(idx)) {
+        // tapping again removes from end (or removes that index)
+        return prev.filter((p) => p !== idx);
       }
+      ding(660 + prev.length * 60, 90);
+      return [...prev, idx];
     });
-    return out;
+  }
+
+  function clearSelection() {
+    setSelection([]);
+  }
+
+  function shuffleSelection() {
+    // animate-shake the bank; we keep the letters but cycle their on-screen order via key
+    setShakeKey((k) => k + 1);
+    setSelection([]);
+    pop();
   }
 
   function submit() {
-    if (!canSubmit) return;
     const guess = builtWord.toUpperCase();
-    const target = challenge.targetWord.toUpperCase();
+    if (guess.length < 2) return;
 
-    if (isFull && guess === target) {
-      setSlotStates(slots.map(() => "correct"));
+    if (foundWords.includes(guess)) {
+      // already found
+      buzz();
+      setMood("oops");
+      setMascotMessage(`You already found "${guess}".`);
+      setMascotNudge((n) => n + 1);
+      setSelection([]);
+      return;
+    }
+
+    if (guess === targetUpper) {
       const next = completeChallenge(challenge.slug, challenge.featherpopValue);
       setProgress(next);
+      setFoundWords((arr) => [...arr, guess]);
+      setPoppedWord(guess);
       fanfare();
+      kidCrowdCheer();
       setMood("cheer");
-      setMascotMessage(
-        completed
-          ? `Already done — but ${challenge.targetWord} again, amazing!`
-          : `${challenge.targetWord}! +${challenge.featherpopValue} FeatherPop!`,
-      );
+      setMascotMessage(`${challenge.targetWord}! +${challenge.featherpopValue} FeatherPop!`);
       setMascotNudge((n) => n + 1);
       speak(
         completed
           ? `${challenge.targetWord}! Great spelling!`
           : `${challenge.targetWord}! You earned ${challenge.featherpopValue} FeatherPop!`,
       );
-      window.setTimeout(() => setPhase("result"), 900);
+      setShowReward(true);
+      setRunning(false);
+      setSelection([]);
+      window.setTimeout(() => {
+        setShowReward(false);
+        setPhase("result");
+      }, 2800);
       return;
     }
 
-    // Maybe a bonus word?
-    const isBonus = challenge.bonusWords
-      .map((w) => w.toUpperCase())
-      .includes(guess);
-    if (isBonus && !foundBonuses.includes(guess)) {
-      setFoundBonuses((arr) => [...arr, guess]);
-      setSlotStates(
-        slots.map((s) => (s !== null ? "correct" : "neutral")),
-      );
+    if (wordList.includes(guess)) {
+      // bonus word
       const cur = readProgress();
       const updated: PlayerProgress = {
         ...cur,
@@ -206,43 +227,28 @@ export function QuestExperience({ challenge }: { challenge: Challenge }) {
       };
       saveProgress(updated);
       setProgress(updated);
+      setFoundWords((arr) => [...arr, guess]);
+      setPoppedWord(guess);
       ding(1200, 120);
       window.setTimeout(() => ding(1500, 120), 130);
+      childOoh();
       setMood("wow");
       setMascotMessage(`Bonus word "${guess}"! +1 FeatherPop!`);
       setMascotNudge((n) => n + 1);
       speak(`Bonus word ${guess}! Plus one FeatherPop!`);
-      window.setTimeout(() => {
-        clearAll();
-        setMood("idle");
-        setMascotMessage(undefined);
-        setMascotNudge((n) => n + 1);
-      }, 1600);
+      setSelection([]);
+      window.setTimeout(() => setPoppedWord(null), 1100);
       return;
     }
 
-    // Plain wrong → per-letter feedback (only on filled slots) + encouragement
-    const ev = evaluate(guess, target);
-    const padded: SlotState[] = slots.map((s, i) =>
-      s === null ? "neutral" : ev[i] ?? "absent",
-    );
-    setSlotStates(padded);
-    setAttempts((a) => a + 1);
+    // Not a known word
     buzz();
     setMood("oops");
-    setMascotMessage(
-      isFull
-        ? undefined
-        : `"${guess}" isn't a bonus word — keep going!`,
-    );
+    setShakeKey((k) => k + 1);
+    setMascotMessage(`"${guess}" isn't in the puzzle — try another!`);
     setMascotNudge((n) => n + 1);
-    speak(
-      isFull
-        ? attempts >= 1
-          ? "Almost! Try again."
-          : "Not quite!"
-        : "Try a different word!",
-    );
+    speak("Try a different word!");
+    setSelection([]);
   }
 
   /* -------- VIDEO -------- */
@@ -276,7 +282,6 @@ export function QuestExperience({ challenge }: { challenge: Challenge }) {
             onClick={() => setPhase("reveal")}
             className="btn btn-ghost btn-sm"
           >
-            <SkipForward aria-hidden className="h-4 w-4" />
             Skip
           </button>
         </div>
@@ -291,17 +296,21 @@ export function QuestExperience({ challenge }: { challenge: Challenge }) {
         <Header challenge={challenge} step="Step 3 · Reveal" />
         <div className="reveal-stage">
           <span className="kicker">Main letter</span>
-          <div className="reveal-main">{challenge.mainLetter}</div>
+          <div className="reveal-main letter-burst">{challenge.mainLetter}</div>
           <p className="text-lg font-bold text-[var(--ink-soft)]">
-            Plus {challenge.letters.length - 1} more letters coming up…
+            Find <strong>{wordList.length}</strong> words hidden in{" "}
+            <strong>{challenge.letters.length}</strong> letters.
           </p>
           <button
             type="button"
-            className="btn btn-primary"
-            onClick={() => setPhase("build")}
+            className="btn btn-primary btn-lg"
+            onClick={() => {
+              stopSpeaking();
+              setPhase("build");
+            }}
           >
             <Play aria-hidden className="h-5 w-5" />
-            Start Building
+            Start the 2-minute round
             <ArrowRight aria-hidden className="h-5 w-5" />
           </button>
         </div>
@@ -311,23 +320,24 @@ export function QuestExperience({ challenge }: { challenge: Challenge }) {
 
   /* -------- RESULT -------- */
   if (phase === "result") {
+    const allFound = foundWords.length === wordList.length;
     return (
       <section className="card card-deep">
         <div className="confetti-host relative grid place-items-center py-2">
           <Confetti />
           <Trophy aria-hidden className="h-14 w-14 text-[var(--gold)]" />
           <h1 className="h-display mt-4 text-center text-4xl">
-            {challenge.targetWord}!
+            {wonTarget ? `${challenge.targetWord}!` : "Time's up!"}
           </h1>
           <p className="mt-2 text-center text-white/85">
-            {completed
-              ? "Already counted — but great job spelling it!"
-              : `+${challenge.featherpopValue} FeatherPop added to your wallet.`}
+            You found{" "}
+            <strong className="text-[var(--gold)]">{foundWords.length}</strong>{" "}
+            of {wordList.length} words
+            {allFound ? " — clean sweep!" : "."}
           </p>
-          {foundBonuses.length > 0 ? (
-            <p className="mt-1 text-sm text-[var(--gold)]">
-              Bonus words found: {foundBonuses.join(", ")} (+
-              {foundBonuses.length} FeatherPop)
+          {foundWords.length > 0 ? (
+            <p className="mt-1 text-sm text-white/75">
+              Words: {foundWords.join(", ")}
             </p>
           ) : null}
           <p className="mt-1 text-sm text-white/65">
@@ -343,78 +353,98 @@ export function QuestExperience({ challenge }: { challenge: Challenge }) {
               Scan another QR
               <ArrowRight aria-hidden className="h-5 w-5" />
             </Link>
-            <Link href="/wallet" className="btn btn-ghost">
-              View Wallet
+            <Link href="/play" className="btn btn-ghost">
+              <Gamepad2 aria-hidden className="h-4 w-4" />
+              Play a side game
             </Link>
-            <Link href="/rewards" className="btn btn-ghost">
-              Check Rewards
-            </Link>
+            <button
+              type="button"
+              onClick={() => {
+                setFoundWords([]);
+                setSecondsLeft(ROUND_SECONDS);
+                setRunning(false);
+                setPhase("build");
+              }}
+              className="btn btn-ghost"
+            >
+              <RefreshCw aria-hidden className="h-4 w-4" />
+              Replay the round
+            </button>
           </div>
         </div>
       </section>
     );
   }
 
-  /* -------- BUILD -------- */
+  /* -------- BUILD (Wordscape-style) -------- */
+  const timeFlash = secondsLeft <= 10;
+  const mm = Math.floor(secondsLeft / 60);
+  const ss = (secondsLeft % 60).toString().padStart(2, "0");
+
   return (
     <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
       <section className="card relative overflow-hidden pb-40 md:pb-32">
         <Header challenge={challenge} step="Step 4 · Build" />
 
+        <div className="quest-toolbar mt-3">
+          <div className={`timer-pill ${timeFlash ? "is-flash" : ""}`}>
+            <Timer aria-hidden className="h-4 w-4" />
+            <span>
+              {mm}:{ss}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              const next = !musicOn;
+              setMusicOn(next);
+              setMusicEnabled(next);
+              if (next) startMusic();
+              else stopMusic();
+            }}
+            className={`music-pill ${musicOn ? "is-on" : ""}`}
+            aria-pressed={musicOn}
+          >
+            <Music2 aria-hidden className="h-4 w-4" />
+            {musicOn ? "Music on" : "Music off"}
+          </button>
+          <div className="found-pill">
+            <Sparkles aria-hidden className="h-4 w-4" />
+            {foundWords.length}/{wordList.length} words
+          </div>
+        </div>
+
         <div className="mt-4 grid gap-5">
-          <div>
-            <p className="mb-2 text-center text-sm font-bold text-[var(--ink-soft)]">
-              Your word ({challenge.targetWord.length} letters)
-            </p>
-            <div
-              className="word-slots"
-              role="list"
-              aria-label="Built word"
-              data-count={challenge.targetWord.length}
-            >
-              {slots.map((idx, slotIdx) => {
-                const filled = idx !== null;
-                const state = slotStates[slotIdx] ?? "neutral";
-                const cls = [
-                  "word-slot",
-                  filled ? "is-filled" : "",
-                  state === "correct" ? "is-correct" : "",
-                  state === "present" ? "is-present" : "",
-                  state === "absent" && filled ? "is-wrong" : "",
-                ]
-                  .filter(Boolean)
-                  .join(" ");
-                return (
-                  <button
-                    type="button"
-                    key={slotIdx}
-                    onClick={() => clearSlot(slotIdx)}
-                    className={cls}
-                    aria-label={
-                      filled
-                        ? `Slot ${slotIdx + 1}: ${challenge.letters[idx!]}, tap to remove`
-                        : `Empty slot ${slotIdx + 1}`
-                    }
-                  >
-                    {filled ? challenge.letters[idx!] : ""}
-                  </button>
-                );
-              })}
+          <WordGrid wordList={wordList} found={foundWords} popped={poppedWord} />
+
+          <div className="built-preview" key={`built-${shakeKey}`}>
+            <span className="built-label">Your guess</span>
+            <div className="built-letters">
+              {builtWord.length === 0 ? (
+                <em className="text-[var(--ink-soft)]">Tap letters below…</em>
+              ) : (
+                builtWord.split("").map((ch, i) => (
+                  <span key={`${ch}-${i}`} className="built-letter">
+                    {ch}
+                  </span>
+                ))
+              )}
             </div>
           </div>
 
           <div>
             <p className="mb-2 text-center text-sm font-bold text-[var(--ink-soft)]">
-              Tap letters to spell
+              Tap letters to build any word from the letters
             </p>
             <div
-              className="letter-bank"
+              className={`letter-ring ${shakeKey ? "letter-ring-pulse" : ""}`}
               role="list"
               aria-label="Letter bank"
               data-count={challenge.letters.length}
+              key={`ring-${shakeKey}`}
             >
               {challenge.letters.map((letter, index) => {
-                const used = usedIndexes.includes(index);
+                const used = selection.includes(index);
                 const isMain =
                   letter === challenge.mainLetter &&
                   index === challenge.letters.indexOf(challenge.mainLetter);
@@ -422,9 +452,10 @@ export function QuestExperience({ challenge }: { challenge: Challenge }) {
                   <button
                     key={`${letter}-${index}`}
                     type="button"
-                    onClick={() => placeLetter(index)}
-                    disabled={used}
-                    className={`letter-tile ${isMain ? "is-main" : ""}`}
+                    onClick={() => toggleLetter(index)}
+                    className={`letter-tile ${isMain ? "is-main" : ""} ${
+                      used ? "is-used" : ""
+                    }`}
                     aria-label={`Letter ${letter}`}
                   >
                     {letter}
@@ -435,30 +466,31 @@ export function QuestExperience({ challenge }: { challenge: Challenge }) {
           </div>
 
           {showHint ? (
-            <p
-              className="rounded-2xl p-4 text-center font-bold"
-              style={{
-                background: "linear-gradient(135deg, #fff7e6, #ffe9c2)",
-                color: "var(--ink)",
-              }}
-            >
-              💡 {challenge.hint}
+            <p className="hint-bubble">
+              💡 {challenge.hint}{" "}
+              <em className="text-[var(--ink-soft)]">
+                The main word is {challenge.targetWord.length} letters long.
+              </em>
             </p>
           ) : null}
 
-          <div className="grid gap-2 sm:grid-cols-3">
+          <div className="grid gap-2 sm:grid-cols-4">
             <button
               type="button"
               onClick={submit}
-              disabled={!canSubmit}
-              className="btn btn-primary"
+              disabled={builtWord.length < 2}
+              className="btn btn-primary sm:col-span-2"
             >
-              {isFull ? "Submit" : `Try “${builtWord}”`}
+              Submit “{builtWord || "…"}”
               <ArrowRight aria-hidden className="h-5 w-5" />
             </button>
-            <button type="button" onClick={clearAll} className="btn btn-ghost">
+            <button
+              type="button"
+              onClick={shuffleSelection}
+              className="btn btn-ghost"
+            >
               <RefreshCw aria-hidden className="h-4 w-4" />
-              Clear
+              Shuffle
             </button>
             <button
               type="button"
@@ -475,19 +507,33 @@ export function QuestExperience({ challenge }: { challenge: Challenge }) {
             </button>
           </div>
 
-          <button
-            type="button"
-            onClick={() =>
-              speak(`Spell the word ${challenge.targetWord.toLowerCase()}.`)
-            }
-            className="mx-auto inline-flex items-center gap-2 text-sm font-bold text-[var(--purple)]"
-          >
-            <Volume2 aria-hidden className="h-4 w-4" />
-            Hear the word
-          </button>
+          <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm">
+            <button
+              type="button"
+              onClick={clearSelection}
+              className="font-bold text-[var(--purple)]"
+            >
+              Clear letters
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                speak(`Spell the word ${challenge.targetWord.toLowerCase()}.`)
+              }
+              className="inline-flex items-center gap-2 font-bold text-[var(--purple)]"
+            >
+              <Volume2 aria-hidden className="h-4 w-4" />
+              Hear the main word
+            </button>
+            <Link href="/play" className="inline-flex items-center gap-2 font-bold text-[var(--purple)]">
+              <Gamepad2 aria-hidden className="h-4 w-4" />
+              Side game
+            </Link>
+          </div>
         </div>
 
         <Mascot mood={mood} message={mascotMessage} nudge={mascotNudge} />
+        {showReward ? <RewardBurst word={targetUpper} /> : null}
       </section>
 
       <aside className="card card-deep">
@@ -499,43 +545,15 @@ export function QuestExperience({ challenge }: { challenge: Challenge }) {
         </span>
 
         <div className="mt-4 min-h-[8rem]">
-          {attempts === 0 && foundBonuses.length === 0 ? (
-            <div>
-              <Sparkles aria-hidden className="h-10 w-10 text-[var(--gold)]" />
-              <h2 className="h-display mt-3 text-2xl">
-                Spell the mystery word.
-              </h2>
-              <p className="mt-2 text-white/75">
-                Zone: <strong>{challenge.zone}</strong>
-              </p>
-              <p className="mt-2 text-sm text-white/60">
-                Tip: shorter words from these letters earn bonus FeatherPop — submit anytime!
-              </p>
-            </div>
-          ) : (
-            <div>
-              {attempts > 0 ? (
-                <>
-                  <XCircle className="h-10 w-10 text-[var(--pink)]" />
-                  <h2 className="h-display mt-3 text-2xl">Tries: {attempts}</h2>
-                  <p className="mt-1 text-white/75">
-                    Green = correct spot. Yellow = right letter, wrong spot.
-                  </p>
-                </>
-              ) : null}
-              {foundBonuses.length > 0 ? (
-                <div className={attempts > 0 ? "mt-3" : ""}>
-                  <CheckCircle2 className="h-8 w-8 text-[var(--mint)]" />
-                  <p className="mt-1 font-bold text-white">
-                    Bonus words found: {foundBonuses.length}
-                  </p>
-                  <p className="text-sm text-white/70">
-                    {foundBonuses.join(", ")}
-                  </p>
-                </div>
-              ) : null}
-            </div>
-          )}
+          <Sparkles aria-hidden className="h-10 w-10 text-[var(--gold)]" />
+          <h2 className="h-display mt-3 text-2xl">{challenge.zone}</h2>
+          <p className="mt-2 text-white/75">
+            Find the secret word and as many bonus words as you can before the
+            timer runs out.
+          </p>
+          <p className="mt-2 text-sm text-white/60">
+            Green = found · faded = still hidden.
+          </p>
         </div>
 
         <div className="mt-5 border-t border-white/15 pt-4">
@@ -549,6 +567,10 @@ export function QuestExperience({ challenge }: { challenge: Challenge }) {
             <Link href="/wallet" className="btn btn-gold btn-sm">
               View Wallet
             </Link>
+            <Link href="/play" className="btn btn-ghost btn-sm">
+              <Gamepad2 aria-hidden className="h-4 w-4" />
+              Side Game
+            </Link>
             <Link href="/scan" className="btn btn-ghost btn-sm">
               Scan Again
             </Link>
@@ -559,6 +581,60 @@ export function QuestExperience({ challenge }: { challenge: Challenge }) {
   );
 }
 
+/* -------- WordGrid (Wordscape-style) -------- */
+function WordGrid({
+  wordList,
+  found,
+  popped,
+}: {
+  wordList: string[];
+  found: string[];
+  popped: string | null;
+}) {
+  // Group by length for cleaner columns
+  const byLen = useMemo(() => {
+    const groups: Record<number, string[]> = {};
+    wordList.forEach((w) => {
+      (groups[w.length] ||= []).push(w);
+    });
+    return Object.entries(groups)
+      .sort(([a], [b]) => Number(a) - Number(b))
+      .map(([len, words]) => ({ len: Number(len), words }));
+  }, [wordList]);
+
+  return (
+    <div className="word-grid">
+      {byLen.map(({ len, words }) => (
+        <div key={len} className="word-grid-col">
+          <span className="word-grid-len">{len}</span>
+          <div className="word-grid-list">
+            {words.map((w) => {
+              const isFound = found.includes(w);
+              const isPop = popped === w;
+              return (
+                <div
+                  key={w}
+                  className={`word-row ${isFound ? "is-found" : ""} ${
+                    isPop ? "is-pop" : ""
+                  }`}
+                  aria-label={isFound ? `${w} found` : `${w.length} letter word`}
+                >
+                  {w.split("").map((ch, i) => (
+                    <span key={`${ch}-${i}`} className="word-cell">
+                      {isFound ? ch : ""}
+                    </span>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* -------- Header -------- */
 function Header({
   challenge,
   step,
@@ -601,14 +677,55 @@ function Header({
   );
 }
 
+/* -------- Reward burst overlay -------- */
+function RewardBurst({ word }: { word: string }) {
+  return (
+    <div className="reward-burst" role="status" aria-live="polite">
+      <div className="reward-ring" />
+      <div className="reward-ring reward-ring-2" />
+      <div className="reward-word">
+        {word.split("").map((ch, i) => (
+          <span
+            key={i}
+            className="reward-letter"
+            style={{ animationDelay: `${i * 70}ms` }}
+          >
+            {ch}
+          </span>
+        ))}
+      </div>
+      <div className="reward-kids">
+        <KidAvatar kid="ari" pose="cheer" size={72} />
+        <KidAvatar kid="bee" pose="jump" size={72} delay={120} />
+        <KidAvatar kid="kai" pose="cheer" size={72} delay={240} />
+        <KidAvatar kid="lila" pose="jump" size={72} delay={360} />
+      </div>
+      <Confetti />
+    </div>
+  );
+}
+
+const CONFETTI_COLORS = [
+  "var(--pink)",
+  "var(--magenta)",
+  "var(--purple)",
+  "var(--gold)",
+  "var(--mint)",
+  "var(--sky-4)",
+];
+
 function Confetti() {
-  const pieces = Array.from({ length: 28 });
+  const piecesRef = useRef<number[]>(
+    Array.from({ length: 36 }, () => Math.random()),
+  );
+  const pieces = piecesRef.current;
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden">
-      {pieces.map((_, i) => {
-        const left = (i / pieces.length) * 100 + Math.random() * 4 - 2;
-        const delay = Math.random() * 0.6;
+      {pieces.map((seed, i) => {
+        const left = (i / pieces.length) * 100 + seed * 4 - 2;
+        const delay = seed * 0.6;
         const color = CONFETTI_COLORS[i % CONFETTI_COLORS.length];
+        const rot = Math.floor(seed * 360);
         return (
           <span
             key={i}
@@ -617,6 +734,7 @@ function Confetti() {
               left: `${left}%`,
               background: color,
               animationDelay: `${delay}s`,
+              transform: `rotate(${rot}deg)`,
             }}
           />
         );
@@ -628,11 +746,11 @@ function Confetti() {
           width: 8px;
           height: 14px;
           border-radius: 2px;
-          animation: confetti-fall 1.8s ease-in forwards;
+          animation: confetti-fall 2s ease-in forwards;
         }
         @keyframes confetti-fall {
           0%   { transform: translateY(-30px) rotate(0deg); opacity: 1; }
-          100% { transform: translateY(260px) rotate(720deg); opacity: 0; }
+          100% { transform: translateY(320px) rotate(720deg); opacity: 0; }
         }
       `}</style>
     </div>

@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Play, SkipForward } from "lucide-react";
 import { speak } from "@/lib/audio";
+import { MsFeatherPopAvatar } from "@/components/MsFeatherPopAvatar";
+import { KidRow } from "@/components/KidAvatar";
 
 const VIDEO_SRC = "/media/intro.mp4"; // optional asset; falls back to poster image
 
@@ -58,14 +60,9 @@ export default function IntroPage() {
               className="h-full w-full object-cover"
             />
           ) : (
-            <Image
-              src="/media/poster.jpeg"
-              alt="Ms. Feather Pop Word Quest"
-              fill
-              sizes="(max-width: 1024px) 100vw, 900px"
-              className="object-cover"
-              priority
-            />
+            <div className="fp-stage absolute inset-0">
+              <MsFeatherPopAvatar pose="wave" size={260} />
+            </div>
           )}
 
           {!playing ? (
@@ -86,6 +83,9 @@ export default function IntroPage() {
         </div>
 
         <div className="p-5 md:p-6">
+          <div className="kid-stage mb-4">
+            <KidRow pose="cheer" size={64} />
+          </div>
           <p className="text-[var(--ink-soft)]">
             {hasVideo
               ? "Press play to watch the welcome toon, then head to the scanner to start your first quest."

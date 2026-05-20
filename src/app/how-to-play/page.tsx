@@ -1,5 +1,9 @@
 import Link from "next/link";
 import { ArrowRight, BookOpen, Camera, Gift, Lightbulb, Sparkles, Trophy } from "lucide-react";
+import { KidAvatar, KidRow } from "@/components/KidAvatar";
+import { MsFeatherPopAvatar } from "@/components/MsFeatherPopAvatar";
+
+const STEP_KIDS = ["ari", "bee", "kai", "lila", "mo", "zara"] as const;
 
 const steps = [
   { title: "1. Scan", text: "Point the phone camera at a Word Quest QR code.", icon: Camera, color: "var(--sky-4)" },
@@ -24,16 +28,24 @@ export default function HowToPlayPage() {
         </p>
       </header>
 
+      <section className="kid-stage mb-6">
+        <KidRow pose="wave" size={70} />
+      </section>
+
       <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {steps.map((s) => {
+        {steps.map((s, i) => {
           const Icon = s.icon;
+          const kid = STEP_KIDS[i % STEP_KIDS.length];
           return (
             <article key={s.title} className="card">
-              <div
-                className="grid h-12 w-12 place-items-center rounded-2xl text-white"
-                style={{ background: s.color }}
-              >
-                <Icon aria-hidden className="h-6 w-6" />
+              <div className="flex items-center gap-3">
+                <div
+                  className="grid h-12 w-12 place-items-center rounded-2xl text-white"
+                  style={{ background: s.color }}
+                >
+                  <Icon aria-hidden className="h-6 w-6" />
+                </div>
+                <KidAvatar kid={kid} pose={i % 2 === 0 ? "wave" : "cheer"} size={56} />
               </div>
               <h2 className="h-display mt-4 text-2xl">{s.title}</h2>
               <p className="mt-1 text-[var(--ink-soft)]">{s.text}</p>
@@ -43,8 +55,16 @@ export default function HowToPlayPage() {
       </section>
 
       <section className="mt-8 card card-deep">
-        <h2 className="h-display text-2xl">Tips for grown-ups</h2>
-        <ul className="mt-3 grid gap-2 text-white/85">
+        <div className="flex items-center gap-3">
+          <MsFeatherPopAvatar pose="hint" size={120} />
+          <div>
+            <h2 className="h-display text-2xl">Tips from Ms. Feather Pop</h2>
+            <p className="mt-1 text-white/70 text-sm">
+              For grown-ups helping out.
+            </p>
+          </div>
+        </div>
+        <ul className="mt-4 grid gap-2 text-white/85">
           <li>· Hold the phone steady — keep the QR inside the bright frame.</li>
           <li>· Encourage kids to say each letter out loud as they tap.</li>
           <li>· Need new challenges? Print a quest pack from the Print page.</li>

@@ -1,7 +1,7 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useState } from "react";
+import { FeatherPopPose, MsFeatherPopAvatar } from "@/components/MsFeatherPopAvatar";
 
 export type MascotMood =
   | "idle"
@@ -46,16 +46,14 @@ const MESSAGES: Record<MascotMood, string[]> = {
   ],
 };
 
-const POSE: Record<MascotMood, { src: string; tilt: number; bob: string }> = {
-  idle:  { src: "/media/hero-portrait-1.jpeg", tilt: -2, bob: "mascot-bob" },
-  think: { src: "/media/hero-portrait-1.jpeg", tilt:  4, bob: "mascot-tilt" },
-  hint:  { src: "/media/hero-portrait-1.jpeg", tilt: -4, bob: "mascot-bob" },
-  oops:  { src: "/media/hero-portrait-1.jpeg", tilt: -8, bob: "mascot-shake" },
-  cheer: { src: "/media/hero-portrait-1.jpeg", tilt:  0, bob: "mascot-cheer" },
-  wow:   { src: "/media/hero-portrait-1.jpeg", tilt:  6, bob: "mascot-cheer" },
+const POSE_FOR: Record<MascotMood, { pose: FeatherPopPose; tilt: number; bob: string }> = {
+  idle:  { pose: "idle",  tilt: -2, bob: "mascot-bob" },
+  think: { pose: "think", tilt:  4, bob: "mascot-tilt" },
+  hint:  { pose: "hint",  tilt: -4, bob: "mascot-bob" },
+  oops:  { pose: "oops",  tilt: -8, bob: "mascot-shake" },
+  cheer: { pose: "cheer", tilt:  0, bob: "mascot-cheer" },
+  wow:   { pose: "wow",   tilt:  6, bob: "mascot-cheer" },
 };
-
-const FALLBACK_PORTRAIT_2 = "/media/hero-portrait-2.jpeg";
 
 export function Mascot({
   mood,
@@ -63,28 +61,21 @@ export function Mascot({
   nudge,
 }: {
   mood: MascotMood;
-  /** Optional explicit message; otherwise rotates through preset lines. */
   message?: string;
-  /** When this number changes, the mascot replays its bubble + animation. */
   nudge?: number;
 }) {
   const [line, setLine] = useState(message ?? MESSAGES[mood][0]);
-  const [usePose2, setUsePose2] = useState(false);
 
   useEffect(() => {
-    // alternate the portrait so the mascot feels alive between nudges
-    setUsePose2((v) => !v);
     if (message) {
       setLine(message);
       return;
     }
     const opts = MESSAGES[mood];
     setLine(opts[Math.floor(Math.random() * opts.length)]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mood, message, nudge]);
 
-  const pose = POSE[mood];
-  const src = usePose2 && mood === "cheer" ? FALLBACK_PORTRAIT_2 : pose.src;
+  const cfg = POSE_FOR[mood];
 
   return (
     <div className="mascot" data-mood={mood}>
@@ -93,16 +84,10 @@ export function Mascot({
         <span className="mascot-bubble-tail" aria-hidden />
       </div>
       <div
-        className={`mascot-figure ${pose.bob}`}
-        style={{ transform: `rotate(${pose.tilt}deg)` }}
+        className={`mascot-figure ${cfg.bob}`}
+        style={{ transform: `rotate(${cfg.tilt}deg)` }}
       >
-        <Image
-          src={src}
-          alt="Ms. Feather Pop mascot"
-          width={140}
-          height={180}
-          priority
-        />
+        <MsFeatherPopAvatar pose={cfg.pose} size={120} />
       </div>
     </div>
   );

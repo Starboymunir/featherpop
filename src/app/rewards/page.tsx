@@ -1,4 +1,5 @@
 import { RewardsClient } from "@/components/RewardsClient";
+import { KidRow } from "@/components/KidAvatar";
 
 export default function RewardsPage() {
   return (
@@ -13,6 +14,9 @@ export default function RewardsPage() {
           activate rewards in person at events or at home.
         </p>
       </header>
+      <section className="kid-stage mb-4">
+        <KidRow kids={["bee", "lila", "mo", "ari"]} pose="jump" size={72} />
+      </section>
       <RewardsClient />
     </main>
   );

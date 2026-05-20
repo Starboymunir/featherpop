@@ -1,7 +1,8 @@
-import Image from "next/image";
 import Link from "next/link";
-import { BookOpen, Camera, Gift, Printer, Sparkles } from "lucide-react";
+import { BookOpen, Camera, Gamepad2, Gift, Printer, Sparkles } from "lucide-react";
 import { StartQuest } from "@/components/StartQuest";
+import { MsFeatherPopAvatar } from "@/components/MsFeatherPopAvatar";
+import { KidRow } from "@/components/KidAvatar";
 
 const features = [
   {
@@ -39,6 +40,9 @@ export default function HomePage() {
           <span className="float-letter" style={{ top: "65%", left: "12%" }}>B</span>
           <span className="float-letter" style={{ top: "18%", right: "10%" }}>C</span>
           <span className="float-letter" style={{ top: "70%", right: "6%" }}>!</span>
+          <span className="float-letter" style={{ top: "40%", left: "2%" }}>★</span>
+          <span className="float-letter" style={{ top: "35%", right: "3%" }}>✦</span>
+          <span className="float-letter" style={{ top: "55%", left: "45%" }}>?</span>
         </div>
 
         <div className="hero-grid">
@@ -59,6 +63,10 @@ export default function HomePage() {
             </p>
             <div className="mt-6 flex flex-wrap items-center gap-3">
               <StartQuest />
+              <Link href="/play" className="btn btn-sky">
+                <Gamepad2 aria-hidden className="h-5 w-5" />
+                Play Word Shake
+              </Link>
               <Link href="/how-to-play" className="btn btn-ghost">
                 How to Play
               </Link>
@@ -71,15 +79,15 @@ export default function HomePage() {
           </div>
 
           <div className="hero-portrait">
-            <Image
-              src="/media/hero-portrait-1.jpeg"
-              alt="Ms. Feather Pop"
-              fill
-              sizes="(max-width: 768px) 100vw, 480px"
-              priority
-            />
+            <div className="fp-stage">
+              <MsFeatherPopAvatar pose="wave" size={300} />
+            </div>
           </div>
         </div>
+      </section>
+
+      <section className="kid-stage mt-6">
+        <KidRow pose="cheer" size={86} />
       </section>
 
       <section className="mt-8">
