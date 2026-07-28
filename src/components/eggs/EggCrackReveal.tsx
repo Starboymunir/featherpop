@@ -20,6 +20,7 @@ export function EggCrackReveal({
   message,
   color,
   wordsInEgg,
+  wordsToHatch = WORDS_TO_HATCH,
   onClose,
 }: {
   level: number;
@@ -27,6 +28,7 @@ export function EggCrackReveal({
   message: string;
   color: EggColor;
   wordsInEgg: number;
+  wordsToHatch?: number;
   onClose: () => void;
 }) {
   useEffect(() => {
@@ -76,11 +78,11 @@ export function EggCrackReveal({
         </h2>
 
         <p className="egg-crack-progress">
-          <strong>{wordsInEgg}</strong> / {WORDS_TO_HATCH} words to hatch
+          <strong>{wordsInEgg}</strong> / {wordsToHatch} words to hatch
         </p>
 
         <div className="egg-crack-progress-bar" aria-hidden>
-          <span style={{ width: `${(wordsInEgg / WORDS_TO_HATCH) * 100}%` }} />
+          <span style={{ width: `${(wordsInEgg / wordsToHatch) * 100}%` }} />
         </div>
 
         <button

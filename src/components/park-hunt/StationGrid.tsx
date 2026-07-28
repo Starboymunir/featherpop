@@ -47,6 +47,7 @@ export function StationGrid({
     message: string;
     color: EggColor;
     wordsInEgg: number;
+    wordsToHatch: number;
   } | null>(null);
   const doneRef = useRef(false);
 

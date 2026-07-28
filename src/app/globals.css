@@ -1897,6 +1897,27 @@ a { color: inherit; }
   100% { transform: scale(1); }
 }
 
+/* Nest sub-goal pill. */
+.nest-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  font-family: var(--font-baloo), sans-serif;
+  font-weight: 800;
+  font-size: 0.85rem;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--gold) 30%, white);
+  border: 1.5px solid var(--gold);
+}
+.nest-pill.is-flash { animation: nest-pill-flash 0.6s ease; }
+@keyframes nest-pill-flash {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 209, 74, 0); }
+  40%      { transform: scale(1.18); box-shadow: 0 0 0 5px rgba(255, 209, 74, 0.7); }
+}
+.shake-nest-flash { color: #a86800; }
+
 /* Lucky-word jackpot: board flashes gold + a big banner. */
 .shake-board.is-lucky { animation: shake-lucky-board 420ms ease; }
 @keyframes shake-lucky-board {
@@ -3186,6 +3207,90 @@ a { color: inherit; }
 @keyframes champion-crown-bob {
   0%, 100% { transform: translateY(0) rotate(-8deg); }
   50%      { transform: translateY(-2px) rotate(8deg); }
+}
+
+/* ---------- Daily Gift (home habit hook) ---------- */
+.daily-gift {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  width: min(24rem, 100%);
+  margin: 0.25rem auto 0.5rem;
+  padding: 0.85rem 1rem;
+  border-radius: 1.25rem;
+  text-align: left;
+  border: 2px solid var(--gold);
+  background: linear-gradient(135deg, #fff, #fff5d6);
+  box-shadow: 0 12px 26px rgba(240, 169, 0, 0.28);
+  cursor: pointer;
+  overflow: hidden;
+  animation: daily-gift-in 0.4s ease-out both;
+}
+.daily-gift.is-opening { pointer-events: none; opacity: 0.9; }
+.daily-gift.is-open { cursor: default; border-color: var(--gold); }
+.daily-gift-icon { font-size: 2rem; line-height: 1; flex: 0 0 auto; }
+.daily-gift-wobble { animation: daily-gift-wobble 1.4s ease-in-out infinite; }
+.daily-gift-body { display: grid; gap: 0.1rem; flex: 1 1 auto; min-width: 0; }
+.daily-gift-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-family: var(--font-baloo), sans-serif;
+  font-weight: 800;
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+  color: var(--magenta);
+  text-transform: uppercase;
+}
+.daily-gift-body strong { color: var(--ink); font-size: 0.95rem; }
+.daily-gift-reward {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-weight: 800;
+  color: #a86800;
+}
+.daily-gift-cta {
+  flex: 0 0 auto;
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  font-family: var(--font-baloo), sans-serif;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(135deg, var(--gold), #ff9a3a);
+}
+.daily-gift-burst {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.daily-gift-burst span {
+  position: absolute;
+  top: 50%;
+  left: 22px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--gold);
+  transform: rotate(calc(var(--i) * 36deg)) translateY(-26px);
+  animation: daily-gift-spark 0.9s ease-out both;
+  animation-delay: calc(var(--i) * 0.02s);
+}
+@keyframes daily-gift-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes daily-gift-wobble {
+  0%, 100% { transform: rotate(-6deg) scale(1); }
+  50%      { transform: rotate(6deg) scale(1.08); }
+}
+@keyframes daily-gift-spark {
+  0%   { opacity: 1; transform: rotate(calc(var(--i) * 36deg)) translateY(0) scale(0.5); }
+  100% { opacity: 0; transform: rotate(calc(var(--i) * 36deg)) translateY(-40px) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .daily-gift-wobble, .daily-gift-burst span { animation: none !important; }
 }
 
 /* ---------- Golden Feather celebration (1,000 words) ---------- */

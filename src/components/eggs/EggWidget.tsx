@@ -11,14 +11,12 @@
 import Link from "next/link";
 import { useActiveChild } from "@/lib/use-active-child";
 import {
-  CRACK_THRESHOLDS,
   WORDS_TO_HATCH,
+  crackThresholdsFor,
   type EggColor,
 } from "@/lib/child-profile";
 import { EggSvg } from "@/components/eggs/EggSvg";
 import { Sparkles } from "lucide-react";
-
-const TOTAL_TO_HATCH = WORDS_TO_HATCH;
 
 export function EggWidget({ compact = false }: { compact?: boolean }) {
   const { progress } = useActiveChild();
@@ -26,15 +24,18 @@ export function EggWidget({ compact = false }: { compact?: boolean }) {
   const egg = progress.egg;
   const eggColor: EggColor = egg?.color ?? "purple";
   const wordsAtStart = egg?.wordsAtStart ?? 0;
-  const wordsInEgg = Math.min(TOTAL_TO_HATCH, Math.max(0, wordsFound - wordsAtStart));
+  // This egg's own hatch total (the first egg is cheaper).
+  const total = egg?.wordsToHatch ?? WORDS_TO_HATCH;
+  const thresholds = crackThresholdsFor(total);
+  const wordsInEgg = Math.min(total, Math.max(0, wordsFound - wordsAtStart));
   // crack level 0..4 based on milestones crossed
   let crackLevel = 0;
-  for (let i = 0; i < CRACK_THRESHOLDS.length - 1; i++) {
-    if (wordsInEgg >= CRACK_THRESHOLDS[i]) crackLevel = i + 1;
+  for (let i = 0; i < thresholds.length - 1; i++) {
+    if (wordsInEgg >= thresholds[i]) crackLevel = i + 1;
   }
 
-  const wordsToGo = Math.max(0, TOTAL_TO_HATCH - wordsInEgg);
-  const pct = Math.round((wordsInEgg / TOTAL_TO_HATCH) * 100);
+  const wordsToGo = Math.max(0, total - wordsInEgg);
+  const pct = Math.round((wordsInEgg / total) * 100);
   const hatchedCount = progress.hatched?.length ?? 0;
 
   return (
@@ -54,11 +55,11 @@ export function EggWidget({ compact = false }: { compact?: boolean }) {
         <p className="egg-widget-color">
           {eggColor.charAt(0).toUpperCase() + eggColor.slice(1)} Egg
         </p>
-        <div className="egg-widget-bar" role="progressbar" aria-valuemin={0} aria-valuemax={TOTAL_TO_HATCH} aria-valuenow={wordsInEgg}>
+        <div className="egg-widget-bar" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={wordsInEgg}>
           <span style={{ width: `${pct}%` }} />
         </div>
         <p className="egg-widget-progress">
-          <strong>{wordsInEgg}</strong> / {TOTAL_TO_HATCH} words
+          <strong>{wordsInEgg}</strong> / {total} words
           {wordsToGo > 0 ? <span className="egg-widget-togo"> · {wordsToGo} to hatch</span> : null}
         </p>
         {hatchedCount > 0 ? (

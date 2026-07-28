@@ -140,6 +140,7 @@ export async function submitFoundWordAction(args: {
         message: string;
         color: import("@/lib/child-profile").EggColor;
         wordsInEgg: number;
+        wordsToHatch: number;
       } | null;
     }
   | { ok: false; reason: string }
@@ -184,6 +185,7 @@ export async function submitFoundWordAction(args: {
         message: string;
         color: import("@/lib/child-profile").EggColor;
         wordsInEgg: number;
+        wordsToHatch: number;
       }
     | null = null;
   try {
@@ -345,6 +347,7 @@ export async function findWordAtStationAction(args: {
         message: string;
         color: import("@/lib/child-profile").EggColor;
         wordsInEgg: number;
+        wordsToHatch: number;
       } | null;
     }
   | { ok: false; reason: string; limit?: boolean }
@@ -371,6 +374,7 @@ export async function findWordAtStationAction(args: {
         message: string;
         color: import("@/lib/child-profile").EggColor;
         wordsInEgg: number;
+        wordsToHatch: number;
       }
     | null = null;
   try {

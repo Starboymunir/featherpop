@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { Play, Sparkles } from "lucide-react";
 import { useActiveChild } from "@/lib/use-active-child";
 import { MsFeatherPopAvatar } from "@/components/MsFeatherPopAvatar";
+import { DailyGiftCard } from "@/components/DailyGiftCard";
 import {
   isMusicEnabled,
   pop,
@@ -79,6 +80,8 @@ export function HomeHero() {
           <MsFeatherPopAvatar pose={greet.pose} size={120} />
         </div>
       </div>
+
+      <DailyGiftCard />
 
       <button
         type="button"

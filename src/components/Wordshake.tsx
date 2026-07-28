@@ -165,6 +165,11 @@ function comboMultiplier(combo: number): number {
   return Math.min(4, 1 + Math.floor(Math.max(0, combo - 1) / 2));
 }
 
+// Session sub-goal: every NEST_SIZE words "fills a nest" for a bonus — gives
+// each round a visible, quick-to-reach target and a reward rhythm.
+const NEST_SIZE = 6;
+const NEST_BONUS = 5;
+
 function areAdjacent(a: number, b: number) {
   const ra = Math.floor(a / GRID_SIZE);
   const ca = a % GRID_SIZE;
@@ -211,6 +216,7 @@ export function Wordshake({
   // genuine wrong guess. Plus a random "lucky word" jackpot for surprise.
   const [combo, setCombo] = useState(0);
   const [luckyFlash, setLuckyFlash] = useState(0);
+  const [nestFlash, setNestFlash] = useState(0);
   const hasPlayedRef = useRef(false);
   const scoreHandledRef = useRef(false);
   const [hatched, setHatched] = useState<HatchedEntry | null>(null);
@@ -224,6 +230,7 @@ export function Wordshake({
     message: string;
     color: EggColor;
     wordsInEgg: number;
+    wordsToHatch: number;
   } | null>(null);
   // 1,000 words this month → the Golden Feather celebration.
   const [goldenFeather, setGoldenFeather] = useState(false);
@@ -442,6 +449,9 @@ export function Wordshake({
     const isLucky = !isMagic && Math.random() < 0.16;
     const base = scoreFor(w);
     const pts = base * mult * (isLucky ? 3 : 1);
+    // Nest sub-goal: does this word complete a nest of NEST_SIZE?
+    const foundCountAfter = found.length + 1;
+    const nestComplete = foundCountAfter % NEST_SIZE === 0;
 
     setFound((arr) => [{ word: w, points: pts }, ...arr]);
     setPath([]);
@@ -465,7 +475,15 @@ export function Wordshake({
       childOoh();
     }
 
-    if (isLucky) {
+    if (nestComplete) {
+      setNestFlash(Date.now());
+      fanfare();
+    }
+
+    if (nestComplete) {
+      setMood("wow");
+      setMascotMessage(`🪺 NEST FULL! +${NEST_BONUS} bonus feathers!`);
+    } else if (isLucky) {
       setMood("wow");
       setMascotMessage(`✨ LUCKY WORD! "${w}" — +${pts} points!`);
     } else if (isMagic) {
@@ -498,6 +516,7 @@ export function Wordshake({
       award += 5;
     }
     award = Math.min(12, award);
+    if (nestComplete) award += NEST_BONUS; // nest bonus stacks on top
     if (award > 0) {
       // Show it RIGHT NOW so the kid sees the reward (optimistic).
       setSessionPop((n) => n + award);
@@ -730,6 +749,12 @@ export function Wordshake({
               🔥 {comboMultiplier(combo)}× · {combo} combo
             </div>
           ) : null}
+          <div
+            className={`nest-pill ${nestFlash ? "is-flash" : ""}`}
+            key={`nest-${nestFlash}`}
+          >
+            🪺 {found.length % NEST_SIZE}/{NEST_SIZE}
+          </div>
           {best > 0 ? (
             <div className="found-pill" title="Your best score">
               🏆 {best}
@@ -786,6 +811,12 @@ export function Wordshake({
           {luckyFlash ? (
             <span key={luckyFlash} className="shake-lucky-flash">
               ✨ LUCKY! ✨
+            </span>
+          ) : null}
+
+          {nestFlash ? (
+            <span key={`nf-${nestFlash}`} className="shake-lucky-flash shake-nest-flash">
+              🪺 NEST FULL!
             </span>
           ) : null}
 

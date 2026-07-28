@@ -10,6 +10,8 @@ import {
   CRACK_MESSAGES,
   CRACK_THRESHOLDS,
   ChildProgress,
+  crackThresholdsFor,
+  hatchWordsForEgg,
   ClaimVariantType,
   CompletedMissionEntry,
   EggColor,
@@ -323,6 +325,7 @@ export interface WordRecordResult {
     message: string;
     color: EggColor;
     wordsInEgg: number; // (nextWords - egg.wordsAtStart)
+    wordsToHatch: number; // this egg's hatch total (first egg is cheaper)
   } | null;
 }
 
@@ -353,6 +356,7 @@ export async function recordWordsFoundAction(count: number): Promise<WordRecordR
     color: pickEggColorForSequence(eggsHatchedSoFar),
     wordsAtStart: prevWords,
     cracksShown: 0,
+    wordsToHatch: hatchWordsForEgg(eggsHatchedSoFar),
   };
 
   let hatched: HatchedEntry | null = null;
@@ -360,13 +364,16 @@ export async function recordWordsFoundAction(count: number): Promise<WordRecordR
   let freeSpins = prev.freeSpins ?? 0;
   let crackJustCrossed: WordRecordResult["crackJustCrossed"] = null;
 
-  // Compute crack level the egg is AT after this call. 0..4 — 4 means
-  // the 50-word hatch threshold was crossed.
+  // This egg's hatch total (first egg is cheaper) + its crack milestones.
+  const eggTotal = egg.wordsToHatch ?? WORDS_PER_HATCH;
+  const eggThresholds = crackThresholdsFor(eggTotal);
+
+  // Compute crack level the egg is AT after this call. 0..4 — 4 = hatch.
   const wordsInEgg = nextWords - egg.wordsAtStart;
   const cracksShown = egg.cracksShown ?? 0;
   let newCrackLevel = cracksShown;
-  for (let i = 0; i < CRACK_THRESHOLDS.length; i++) {
-    if (wordsInEgg >= CRACK_THRESHOLDS[i]) newCrackLevel = i + 1;
+  for (let i = 0; i < eggThresholds.length; i++) {
+    if (wordsInEgg >= eggThresholds[i]) newCrackLevel = i + 1;
   }
 
   // Did we cross a new milestone? Surface the highest one we crossed
@@ -378,15 +385,14 @@ export async function recordWordsFoundAction(count: number): Promise<WordRecordR
       label: CRACK_LABELS[idx],
       message: CRACK_MESSAGES[idx],
       color: egg.color,
-      wordsInEgg: Math.min(wordsInEgg, WORDS_PER_HATCH),
+      wordsInEgg: Math.min(wordsInEgg, eggTotal),
+      wordsToHatch: eggTotal,
     };
   }
 
-  // Hatch if we hit 50 words. The hatch reveal takes precedence over
-  // the crack overlay — the client surfaces it via the existing
-  // EggHatchReveal path while the crack overlay is suppressed when
-  // hatched is non-null.
-  if (wordsInEgg >= WORDS_PER_HATCH) {
+  // Hatch if we hit this egg's threshold. The hatch reveal takes precedence
+  // over the crack overlay (suppressed when hatched is non-null).
+  if (wordsInEgg >= eggTotal) {
     const character = pickHatchedCharacter();
     hatched = {
       character,
@@ -395,11 +401,12 @@ export async function recordWordsFoundAction(count: number): Promise<WordRecordR
       wordsRead: nextWords,
     };
     nextHatched = [hatched, ...nextHatched].slice(0, 100);
-    freeSpins += 1; // per spec: every 50 words = +1 free spin
+    freeSpins += 1; // every hatch = +1 free spin
     egg = {
       color: pickEggColorForSequence(eggsHatchedSoFar + 1),
       wordsAtStart: nextWords,
       cracksShown: 0,
+      wordsToHatch: hatchWordsForEgg(eggsHatchedSoFar + 1),
     };
   } else {
     egg = { ...egg, cracksShown: newCrackLevel };
@@ -638,6 +645,48 @@ export async function claimVideoBonusAction(): Promise<{
   await writeMap({ ...map, [childId]: next });
   revalidatePath("/", "layout");
   return { awarded: true, featherPop: next.featherPop };
+}
+
+/**
+ * Daily Gift — the once-a-day surprise that pulls kids back (habit-loop cue).
+ * Awards a random reward (FeatherPop, sometimes a free spin) once per day.
+ * Idempotent per day. Returns what was won so the UI can reveal it.
+ */
+export async function claimDailyGiftAction(): Promise<
+  | {
+      ok: true;
+      featherPop: number; // FeatherPop won today
+      freeSpin: boolean; // whether a free spin was included
+      total: number; // new FeatherPop total
+    }
+  | { ok: false; reason: string }
+> {
+  const childId = await getActiveChildId();
+  if (!childId) return { ok: false, reason: "No active child." };
+  const user = await currentUser();
+  if (!user) return { ok: false, reason: "Not signed in." };
+
+  const map = readMap(user.privateMetadata);
+  const prev = map[childId] ?? defaultChildProgress;
+  const dk = dayKey();
+  if ((prev.dailyGiftDates ?? []).includes(dk)) {
+    return { ok: false, reason: "Already opened today." };
+  }
+
+  // Weighted random reward. Mostly feathers, sometimes a free spin bundled in.
+  const featherOptions = [10, 15, 15, 20, 25, 30, 40];
+  const featherPop = featherOptions[Math.floor(Math.random() * featherOptions.length)];
+  const freeSpin = Math.random() < 0.35;
+
+  const next: ChildProgress = {
+    ...prev,
+    featherPop: prev.featherPop + featherPop,
+    freeSpins: (prev.freeSpins ?? 0) + (freeSpin ? 1 : 0),
+    dailyGiftDates: [dk, ...(prev.dailyGiftDates ?? [])].slice(0, 60),
+  };
+  await writeMap({ ...map, [childId]: next });
+  revalidatePath("/", "layout");
+  return { ok: true, featherPop, freeSpin, total: next.featherPop };
 }
 
 /** Same shape as claimVideoBonusAction but for music stations. */

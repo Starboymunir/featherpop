@@ -40,6 +40,9 @@ export interface EggState {
   // cracking overlay only fires when the kid crosses a NEW threshold,
   // not on every word past it.
   cracksShown?: number;
+  // Words needed to hatch THIS egg (stored so the first egg can be cheap
+  // for a fast first-session reward). Falls back to WORDS_TO_HATCH.
+  wordsToHatch?: number;
 }
 
 /**
@@ -48,10 +51,23 @@ export interface EggState {
  */
 export const WORDS_TO_HATCH = 50;
 
+/** The 5 crack milestones (fractions of the hatch total) → word counts. */
+export function crackThresholdsFor(total: number): number[] {
+  return [0.2, 0.4, 0.6, 0.8, 1].map((f) => Math.max(1, Math.round(f * total)));
+}
+
 /** The 5 crack milestones (in words past wordsAtStart). The last = hatch. */
-export const CRACK_THRESHOLDS: number[] = [0.2, 0.4, 0.6, 0.8, 1].map((f) =>
-  Math.max(1, Math.round(f * WORDS_TO_HATCH)),
-);
+export const CRACK_THRESHOLDS: number[] = crackThresholdsFor(WORDS_TO_HATCH);
+
+/**
+ * Words to hatch the egg at index `eggIndex` (0-based). The FIRST egg hatches
+ * fast so every new child gets a character in their first session — the single
+ * strongest early hook. Later eggs use the normal threshold.
+ */
+export function hatchWordsForEgg(eggIndex: number): number {
+  if (eggIndex <= 0) return Math.min(WORDS_TO_HATCH, 8);
+  return WORDS_TO_HATCH;
+}
 /** Sequence-of-events labels shown at each milestone. */
 export const CRACK_LABELS = [
   "Small Crack",
@@ -147,6 +163,8 @@ export interface ChildProgress {
   // of today's key in either set means the bonus was claimed today.
   videoBonusDates?: string[];
   musicBonusDates?: string[];
+  // Days (YYYY-MM-DD) the child opened the Daily Gift — one per day.
+  dailyGiftDates?: string[];
 }
 
 export const defaultChildProgress: ChildProgress = {
