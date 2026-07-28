@@ -11,6 +11,7 @@ import {
   ding,
   fanfare,
   isMusicEnabled,
+  jingle,
   pop,
   setMusicEnabled,
   startMusic,
@@ -431,6 +432,8 @@ export function Wordshake({
     setFlyScore({ value: pts, key: Date.now() });
     window.setTimeout(() => setFlyScore(null), 950);
     pop();
+    // Sparkly jingle on every correct word — climbs a little for longer words.
+    jingle(w.length - 3);
 
     // ONE cheer per word. Magic-word bonus replaces the points cheer
     // instead of firing on top of it — was playing childCheer twice

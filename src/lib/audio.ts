@@ -200,6 +200,21 @@ export function pop() {
   chirp(420, 1100, 130, "triangle", 0.25);
 }
 
+/**
+ * Sparkly "correct word!" jingle — a quick bright arpeggio with a shimmer on
+ * top. Used in Letter Pop each time a valid word is accepted. `step` shifts
+ * the whole thing up a little for longer words so combos feel like they climb.
+ */
+export function jingle(step = 0) {
+  const base = 1 + Math.min(step, 6) * 0.045; // subtle upward drift
+  const notes = [784, 988, 1319, 1568]; // G5 B5 E6 G6 — a bright major sparkle
+  notes.forEach((f, i) => {
+    tone(f * base, 150, "triangle", 0.2, i * 0.06);
+  });
+  // Shimmer tail (bell-like sine) an octave up.
+  tone(1976 * base, 260, "sine", 0.12, 0.24);
+}
+
 export function fanfare() {
   chirp(440, 660, 150, "triangle", 0.25, 0);
   chirp(660, 990, 150, "triangle", 0.25, 0.15);
