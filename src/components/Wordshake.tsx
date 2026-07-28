@@ -30,6 +30,7 @@ import type { EggColor, HatchedEntry } from "@/lib/child-profile";
 import { EggHatchReveal } from "@/components/eggs/EggHatchReveal";
 import { EggCrackReveal } from "@/components/eggs/EggCrackReveal";
 import { GoldenFeatherReveal } from "@/components/progress/GoldenFeatherReveal";
+import { LevelUpReveal } from "@/components/progress/LevelUpReveal";
 import { useNavGuard } from "@/lib/use-nav-guard";
 import { Mascot, MascotMood } from "@/components/Mascot";
 
@@ -234,6 +235,8 @@ export function Wordshake({
   } | null>(null);
   // 1,000 words this month → the Golden Feather celebration.
   const [goldenFeather, setGoldenFeather] = useState(false);
+  // New Explorer Level reached this session.
+  const [levelUp, setLevelUp] = useState<number | null>(null);
   const pendingAwardsRef = useRef(0);
   const refreshTimerRef = useRef<number | null>(null);
   // Batching state for the persist flow — see acceptWord() comment.
@@ -280,6 +283,7 @@ export function Wordshake({
           if (recRes?.goldenFeatherJustEarned) {
             setGoldenFeather(true);
           }
+          if (recRes?.leveledUpTo) setLevelUp(recRes.leveledUpTo);
         }
         if (bonus > 0) await awardFeatherPopAction(bonus);
       } catch (err) {
@@ -326,7 +330,7 @@ export function Wordshake({
   // True while a celebration overlay is up (hatch or crack). The timer
   // pauses for the duration so the kid isn't penalized for watching
   // their reward animation.
-  const paused = !!hatched || !!crackMilestone || goldenFeather;
+  const paused = !!hatched || !!crackMilestone || goldenFeather || levelUp !== null;
 
   // Guard browser back + every <Link> click while a round is in
   // progress. Pause-overlay state DOESN'T count as in-progress for
@@ -557,6 +561,7 @@ export function Wordshake({
               if (recRes?.goldenFeatherJustEarned) {
                 setGoldenFeather(true);
               }
+              if (recRes?.leveledUpTo) setLevelUp(recRes.leveledUpTo);
             }
             if (bonusTotal > 0) await awardFeatherPopAction(bonusTotal);
           } catch (err) {
@@ -703,7 +708,9 @@ export function Wordshake({
 
   return (
     <div className="wordshake">
-      {goldenFeather ? (
+      {levelUp !== null ? (
+        <LevelUpReveal level={levelUp} onClose={() => setLevelUp(null)} />
+      ) : goldenFeather ? (
         <GoldenFeatherReveal onClose={() => setGoldenFeather(false)} />
       ) : hatched ? (
         <EggHatchReveal hatched={hatched} onClose={() => setHatched(null)} />

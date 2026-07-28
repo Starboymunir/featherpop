@@ -24,6 +24,7 @@ import {
 import { Mission, getMission } from "@/lib/missions";
 import { getActiveChildId } from "@/lib/active-child-server";
 import { isOwnerUser } from "@/lib/owner";
+import { explorerLevel } from "@/lib/explorer-level";
 import {
   hashSeed,
   rngFromSeed,
@@ -315,6 +316,7 @@ export interface WordRecordResult {
   progress: ChildProgress;
   hatched: HatchedEntry | null; // non-null when this submission triggered a hatch
   goldenFeatherJustEarned: boolean; // true if this record crossed 1000 this month
+  leveledUpTo: number | null; // new Explorer Level if this record crossed one
   // Highest crack milestone CROSSED on this call (0..4). The 5th index
   // (50 words = hatch) is also represented by `hatched` being non-null.
   // When crackJustCrossed is null, the call advanced the egg but didn't
@@ -422,6 +424,11 @@ export async function recordWordsFoundAction(count: number): Promise<WordRecordR
   const goldenFeatherJustEarned =
     wordsThisMonth >= GOLDEN_FEATHER_GOAL && !alreadyEarnedThisMonth;
 
+  // Explorer Level up? (based on cumulative words, so it only climbs.)
+  const prevLevel = explorerLevel(prevWords);
+  const newLevel = explorerLevel(nextWords);
+  const leveledUpTo = newLevel > prevLevel ? newLevel : null;
+
   const next: ChildProgress = {
     ...prev,
     featherPop:
@@ -441,7 +448,7 @@ export async function recordWordsFoundAction(count: number): Promise<WordRecordR
 
   await writeMap({ ...map, [childId]: next });
   revalidatePath("/", "layout");
-  return { progress: next, hatched, goldenFeatherJustEarned, crackJustCrossed };
+  return { progress: next, hatched, goldenFeatherJustEarned, crackJustCrossed, leveledUpTo };
 }
 
 /**
