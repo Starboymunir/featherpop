@@ -35,6 +35,7 @@ import {
   fanfare,
   featherDrop,
   featherPickup,
+  jingle,
   pop,
   spiderApproach,
   spiderVoice,
@@ -150,6 +151,9 @@ export function FeatherSortGame() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [wrongPulse, setWrongPulse] = useState<FeatherType | null>(null);
   const [confettiKey, setConfettiKey] = useState(0);
+  // Consecutive correct placements → the placement jingle climbs, so a tidy
+  // sorter sounds like they're on a roll. Resets on a wrong nest / new round.
+  const placeComboRef = useRef(0);
   const [mood, setMood] = useState<MascotMood>("idle");
   const [mascotMsg, setMascotMsg] = useState<string | undefined>();
   const [mascotNudge, setMascotNudge] = useState(0);
@@ -302,11 +306,15 @@ export function FeatherSortGame() {
 
       if (feather.type === targetType) {
         featherDrop();
+        placeComboRef.current += 1;
+        // A short sparkle that climbs with the placement streak.
+        jingle(Math.min(6, placeComboRef.current - 1));
         setFeathers((list) =>
           list.map((f) => (f.id === featherId ? { ...f, placed: targetType } : f)),
         );
       } else {
         wrongDrop();
+        placeComboRef.current = 0;
         setWrongPulse(targetType);
         window.setTimeout(() => setWrongPulse(null), 600);
         setLives((l) => {
@@ -333,6 +341,7 @@ export function FeatherSortGame() {
   );
 
   function resetRound() {
+    placeComboRef.current = 0;
     const types = pickColorsForRound(round);
     setRoundTypes(types);
     setFeathers(makeRound(types, feathersPerColor(round)));
@@ -345,6 +354,7 @@ export function FeatherSortGame() {
   }
 
   function nextRound() {
+    placeComboRef.current = 0;
     const r = round + 1;
     setRound(r);
     setRoundTypes(pickColorsForRound(r));
