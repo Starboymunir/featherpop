@@ -86,10 +86,10 @@ interface SortLevel {
   seconds: number;
 }
 const SORT_LEVELS: SortLevel[] = [
-  { id: 1, label: "Easy",   emoji: "🌱", nests: 3, perColor: 2, seconds: 60 },
-  { id: 2, label: "Medium", emoji: "⭐", nests: 4, perColor: 3, seconds: 55 },
-  { id: 3, label: "Hard",   emoji: "🔥", nests: 4, perColor: 4, seconds: 48 },
-  { id: 4, label: "Expert", emoji: "👑", nests: 4, perColor: 5, seconds: 42 },
+  { id: 1, label: "Easy",   emoji: "🌱", nests: 3, perColor: 2, seconds: 30 },
+  { id: 2, label: "Medium", emoji: "⭐", nests: 4, perColor: 3, seconds: 26 },
+  { id: 3, label: "Hard",   emoji: "🔥", nests: 4, perColor: 4, seconds: 22 },
+  { id: 4, label: "Expert", emoji: "👑", nests: 4, perColor: 5, seconds: 18 },
 ];
 function levelConfig(level: number): SortLevel {
   return SORT_LEVELS[Math.max(0, Math.min(SORT_LEVELS.length - 1, level - 1))];
