@@ -1876,6 +1876,54 @@ a { color: inherit; }
   100% { opacity: 0; transform: translate(-50%, -90px) scale(1.05) rotate(0); }
 }
 
+/* Combo streak pill in the Letter Pop toolbar. */
+.combo-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  font-family: var(--font-baloo), sans-serif;
+  font-weight: 800;
+  font-size: 0.85rem;
+  color: #fff;
+  background: linear-gradient(135deg, #ff7a3a, #ff2d8e);
+  box-shadow: 0 6px 16px rgba(255, 45, 142, 0.4);
+  animation: combo-pop 0.35s ease;
+}
+@keyframes combo-pop {
+  0%   { transform: scale(0.8); }
+  60%  { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+
+/* Lucky-word jackpot: board flashes gold + a big banner. */
+.shake-board.is-lucky { animation: shake-lucky-board 420ms ease; }
+@keyframes shake-lucky-board {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 209, 74, 0); }
+  40%      { box-shadow: 0 0 0 6px rgba(255, 209, 74, 0.8), 0 0 40px 10px rgba(255, 209, 74, 0.7); }
+}
+.shake-lucky-flash {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  pointer-events: none;
+  font-family: var(--font-baloo), sans-serif;
+  font-weight: 900;
+  font-size: clamp(1.5rem, 6vw, 2.4rem);
+  color: #fff;
+  white-space: nowrap;
+  text-shadow: 0 4px 14px rgba(240, 169, 0, 0.8), 0 0 20px rgba(255, 209, 74, 0.9);
+  z-index: 6;
+  animation: shake-lucky-flash 1200ms cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+}
+@keyframes shake-lucky-flash {
+  0%   { opacity: 0; transform: translate(-50%, 10px) scale(0.5) rotate(-6deg); }
+  20%  { opacity: 1; transform: translate(-50%, -6px) scale(1.25) rotate(3deg); }
+  80%  { opacity: 1; transform: translate(-50%, -10px) scale(1.1) rotate(-2deg); }
+  100% { opacity: 0; transform: translate(-50%, -40px) scale(1) rotate(0); }
+}
+
 /* ---------- Ms. Feather Pop avatar ---------- */
 /* ---------- Sprite-sheet animation (used by AnimatedAvatar for poses) ---------- */
 .sprite-anim {

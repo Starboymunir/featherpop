@@ -160,6 +160,11 @@ function scoreFor(word: string) {
   return 11 + (n - 7) * 2;
 }
 
+// Consecutive correct words build a climbing points multiplier (1× → 4×).
+function comboMultiplier(combo: number): number {
+  return Math.min(4, 1 + Math.floor(Math.max(0, combo - 1) / 2));
+}
+
 function areAdjacent(a: number, b: number) {
   const ra = Math.floor(a / GRID_SIZE);
   const ca = a % GRID_SIZE;
@@ -202,6 +207,10 @@ export function Wordshake({
   // bumps live when a round beats it. `isNewBest` drives the celebration.
   const [best, setBest] = useState(initialBest);
   const [isNewBest, setIsNewBest] = useState(false);
+  // Combo: consecutive correct words → a climbing multiplier; resets on a
+  // genuine wrong guess. Plus a random "lucky word" jackpot for surprise.
+  const [combo, setCombo] = useState(0);
+  const [luckyFlash, setLuckyFlash] = useState(0);
   const hasPlayedRef = useRef(false);
   const scoreHandledRef = useRef(false);
   const [hatched, setHatched] = useState<HatchedEntry | null>(null);
@@ -417,6 +426,7 @@ export function Wordshake({
     }
     if (!isDictWord(w)) {
       buzz();
+      setCombo(0); // a genuine wrong guess breaks the streak
       setBoardClass("is-wrong");
       window.setTimeout(() => setBoardClass(""), 380);
       setMood("oops");
@@ -424,22 +434,30 @@ export function Wordshake({
       setMascotNudge((n) => n + 1);
       return;
     }
-    const pts = scoreFor(w);
+    const isMagic = !!(keyWord && w === keyWord.toUpperCase());
+    const nextCombo = combo + 1;
+    setCombo(nextCombo);
+    const mult = comboMultiplier(nextCombo);
+    // ~1 in 6 non-magic words is a surprise "lucky" jackpot (3×).
+    const isLucky = !isMagic && Math.random() < 0.16;
+    const base = scoreFor(w);
+    const pts = base * mult * (isLucky ? 3 : 1);
+
     setFound((arr) => [{ word: w, points: pts }, ...arr]);
     setPath([]);
-    setBoardClass("is-win");
+    setBoardClass(isLucky ? "is-lucky" : "is-win");
     window.setTimeout(() => setBoardClass(""), 380);
     setFlyScore({ value: pts, key: Date.now() });
     window.setTimeout(() => setFlyScore(null), 950);
     pop();
-    // Sparkly jingle on every correct word — climbs a little for longer words.
-    jingle(w.length - 3);
+    // Jingle climbs with word length AND combo, so streaks sound like they rise.
+    jingle(w.length - 3 + Math.min(6, nextCombo));
+    if (isLucky) setLuckyFlash(Date.now());
 
-    // ONE cheer per word. Magic-word bonus replaces the points cheer
-    // instead of firing on top of it — was playing childCheer twice
-    // back-to-back which the client heard as 'same sound twice'.
-    const isMagic = !!(keyWord && w === keyWord.toUpperCase());
-    if (isMagic) {
+    // ONE cheer per word (fanfare already includes a cheer, so don't double).
+    if (isLucky) {
+      fanfare();
+    } else if (isMagic) {
       childCheer();
     } else if (pts >= 4) {
       childCheer();
@@ -447,10 +465,16 @@ export function Wordshake({
       childOoh();
     }
 
-    if (isMagic) {
+    if (isLucky) {
+      setMood("wow");
+      setMascotMessage(`✨ LUCKY WORD! "${w}" — +${pts} points!`);
+    } else if (isMagic) {
       setMood("wow");
       setMascotMessage(`MAGIC WORD! "${w}" — bonus FeatherPop!`);
-    } else if (w.length >= 5 || pts >= 6) {
+    } else if (mult >= 2) {
+      setMood("wow");
+      setMascotMessage(`🔥 ${mult}× combo! "${w}" — +${pts} points!`);
+    } else if (w.length >= 5 || base >= 6) {
       setMood("wow");
       setMascotMessage(`Big word! "${w}" — +${pts} points!`);
     } else {
@@ -467,10 +491,13 @@ export function Wordshake({
     // Earlier this used floor(pts/4) which returned 0 for 3-4 letter
     // words — the kid found the word but nothing landed on the server,
     // and the egg-cracking counter never moved.
-    let award = Math.max(1, Math.floor(pts / 4));
+    // Feathers scale off the BASE word (not the flashy points) so the economy
+    // stays sane, with a small bonus for combos + lucky words. Capped.
+    let award = Math.max(1, Math.floor(base / 4)) + (mult - 1) + (isLucky ? 2 : 0);
     if (isMagic) {
       award += 5;
     }
+    award = Math.min(12, award);
     if (award > 0) {
       // Show it RIGHT NOW so the kid sees the reward (optimistic).
       setSessionPop((n) => n + award);
@@ -539,6 +566,7 @@ export function Wordshake({
     setGridSeed((s) => s + 1);
     setPath([]);
     setFound([]);
+    setCombo(0);
     setSecondsLeft(ROUND_SECONDS);
     setRunning(true);
     hasPlayedRef.current = true;
@@ -697,6 +725,11 @@ export function Wordshake({
             <Sparkles aria-hidden className="h-4 w-4" />
             {totalPoints} pts
           </div>
+          {combo >= 2 ? (
+            <div className="combo-pill" aria-live="polite">
+              🔥 {comboMultiplier(combo)}× · {combo} combo
+            </div>
+          ) : null}
           {best > 0 ? (
             <div className="found-pill" title="Your best score">
               🏆 {best}
@@ -747,6 +780,12 @@ export function Wordshake({
           {flyScore ? (
             <span key={flyScore.key} className="shake-flyscore">
               +{flyScore.value}
+            </span>
+          ) : null}
+
+          {luckyFlash ? (
+            <span key={luckyFlash} className="shake-lucky-flash">
+              ✨ LUCKY! ✨
             </span>
           ) : null}
 
