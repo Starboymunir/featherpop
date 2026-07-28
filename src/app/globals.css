@@ -4302,10 +4302,55 @@ a { color: inherit; }
   grid-auto-rows: 1fr;
   align-content: stretch;
   height: 100%;
+  min-height: 0;
+  overflow: hidden; /* nests are capped at 4 and distributed — never scroll */
   background: linear-gradient(90deg, rgba(255,255,255,0.4), rgba(255,255,255,0.65));
-  padding: 0.5rem;
-  gap: 0.4rem;
+  padding: 0.4rem;
+  gap: 0.35rem;
 }
+/* Each nest cell must be allowed to shrink so 4 always fit the column. */
+.sort-board-nests-vertical > * { min-height: 0; }
+
+/* ---------- Feather Match level select ---------- */
+.sort-levelselect {
+  position: relative;
+  z-index: 3;
+  display: grid;
+  justify-items: center;
+  gap: 0.5rem;
+  text-align: center;
+  padding: 1.5rem 1rem 2rem;
+}
+.sort-levelselect-sub { color: var(--ink-soft); margin: 0; font-size: 0.95rem; }
+.sort-levelselect-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  width: min(30rem, 100%);
+  margin-top: 0.75rem;
+}
+.sort-level-card {
+  display: grid;
+  justify-items: center;
+  gap: 0.2rem;
+  padding: 1rem 0.75rem;
+  border-radius: 1.25rem;
+  background: white;
+  border: 2px solid color-mix(in srgb, var(--purple) 25%, white);
+  box-shadow: 0 10px 24px rgba(106, 45, 255, 0.14);
+  cursor: pointer;
+  transition: transform 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+}
+.sort-level-card:hover { transform: translateY(-3px); border-color: var(--purple); }
+.sort-level-card.is-current { border-color: var(--gold); }
+.sort-level-emoji { font-size: 2rem; line-height: 1; }
+.sort-level-label {
+  font-family: var(--font-baloo), sans-serif;
+  font-weight: 800;
+  font-size: 1.1rem;
+  color: var(--ink);
+}
+.sort-level-meta { font-size: 0.72rem; font-weight: 700; color: var(--ink-soft); }
 .sort-nest {
   position: relative;
   display: grid;

@@ -19,7 +19,6 @@ import { FEATHER_META, FEATHER_ORDER } from "@/lib/levels";
 import type { FeatherType } from "@/lib/missions";
 import { pickKeyWord } from "@/lib/sort-words";
 import { useActiveChild } from "@/lib/use-active-child";
-import { explorerLevel } from "@/lib/explorer-level";
 import { awardFeatherPopAction } from "@/lib/child-progress-actions";
 import { pickEagleWordAction } from "@/lib/park-hunt-actions";
 import { useNavGuard } from "@/lib/use-nav-guard";
@@ -48,7 +47,7 @@ import {
   wrongDrop,
 } from "@/lib/audio";
 
-type Phase = "playing" | "bird" | "reveal" | "spider" | "won" | "lost";
+type Phase = "levelselect" | "playing" | "bird" | "reveal" | "spider" | "won" | "lost";
 
 interface FeatherInstance {
   id: string;
@@ -61,10 +60,9 @@ interface FeatherInstance {
 
 const LIVES = 5;
 
-// Timer scales with round so later rounds (more feathers, more nests) stay
-// achievable. Round 1 = 30s, +5s per round to a max of 50s.
-function timerForRound(round: number): number {
-  return Math.min(50, 30 + (round - 1) * 5);
+// Timer comes from the chosen level (tighter at higher levels).
+function timerForRound(level: number): number {
+  return levelConfig(level).seconds;
 }
 
 function shuffle<T>(arr: T[]): T[] {
@@ -76,19 +74,35 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-// How many feather TYPES to use this round (nest count).
-function pickColorsForRound(round: number): FeatherType[] {
-  // 1 → 3 colors, 2 → 4, 3 → 5, 4+ → 6 (all colors).
-  const count = Math.min(6, 2 + round);
-  return shuffle(FEATHER_ORDER).slice(0, count);
+// Player-chosen difficulty levels. Nest count is CAPPED at 4 so all nests
+// always fit on a phone without scrolling — higher levels get harder through
+// denser scatter + a tighter timer, not more nests.
+interface SortLevel {
+  id: number;
+  label: string;
+  emoji: string;
+  nests: number; // 2..4
+  perColor: number; // feathers of each color
+  seconds: number;
+}
+const SORT_LEVELS: SortLevel[] = [
+  { id: 1, label: "Easy",   emoji: "🌱", nests: 3, perColor: 2, seconds: 60 },
+  { id: 2, label: "Medium", emoji: "⭐", nests: 4, perColor: 3, seconds: 55 },
+  { id: 3, label: "Hard",   emoji: "🔥", nests: 4, perColor: 4, seconds: 48 },
+  { id: 4, label: "Expert", emoji: "👑", nests: 4, perColor: 5, seconds: 42 },
+];
+function levelConfig(level: number): SortLevel {
+  return SORT_LEVELS[Math.max(0, Math.min(SORT_LEVELS.length - 1, level - 1))];
 }
 
-// How many feathers of EACH color to scatter — grows with the round so a
-// later round has a denser, more chaotic scatter.
-function feathersPerColor(round: number): number {
-  if (round <= 1) return 2;
-  if (round <= 3) return 3;
-  return 4;
+// How many feather TYPES to use this round (= nest count, capped at 4).
+function pickColorsForRound(level: number): FeatherType[] {
+  return shuffle(FEATHER_ORDER).slice(0, levelConfig(level).nests);
+}
+
+// How many feathers of EACH color to scatter (denser at higher levels).
+function feathersPerColor(level: number): number {
+  return levelConfig(level).perColor;
 }
 
 // The mascot lives in the bottom-LEFT corner with a speech bubble that
@@ -134,28 +148,22 @@ function makeRound(types: FeatherType[], perColor: number): FeatherInstance[] {
 
 export function FeatherSortGame() {
   const router = useRouter();
-  const { activeChildId, progress } = useActiveChild();
+  const { activeChildId } = useActiveChild();
 
-  // Adaptive difficulty: higher Explorer Levels START at a harder round so the
-  // game never feels trivial to kids who've advanced. Gentle ramp, capped.
-  const startRound = useMemo(
-    () => 1 + Math.min(4, Math.floor(explorerLevel(progress.wordsFound ?? 0) / 3)),
-    [progress.wordsFound],
-  );
-
-  const [round, setRound] = useState(startRound);
-  // Color subset re-rolled on every round (random each time, NOT
-  // index-based like before).
+  // `round` now means the CHOSEN difficulty level (1..4). Set by the player
+  // via the level picker, not auto-incremented.
+  const [round, setRound] = useState(1);
   const [roundTypes, setRoundTypes] = useState<FeatherType[]>(() =>
-    pickColorsForRound(startRound),
+    pickColorsForRound(1),
   );
 
   const [feathers, setFeathers] = useState<FeatherInstance[]>(() =>
-    makeRound(roundTypes, feathersPerColor(startRound)),
+    makeRound(roundTypes, feathersPerColor(1)),
   );
   const [lives, setLives] = useState(LIVES);
-  const [timeLeft, setTimeLeft] = useState(() => timerForRound(startRound));
-  const [phase, setPhase] = useState<Phase>("playing");
+  const [timeLeft, setTimeLeft] = useState(() => timerForRound(1));
+  // Start by asking the child to pick a difficulty.
+  const [phase, setPhase] = useState<Phase>("levelselect");
   const [activeId, setActiveId] = useState<string | null>(null);
   const [wrongPulse, setWrongPulse] = useState<FeatherType | null>(null);
   const [confettiKey, setConfettiKey] = useState(0);
@@ -361,13 +369,22 @@ export function FeatherSortGame() {
     setMascotNudge((n) => n + 1);
   }
 
+  // "New round" no longer auto-escalates — it lets the child pick a level.
   function nextRound() {
+    setPhase("levelselect");
+  }
+
+  // Start a fresh round at the chosen difficulty level.
+  function startLevel(level: number) {
     placeComboRef.current = 0;
-    const r = round + 1;
-    setRound(r);
-    setRoundTypes(pickColorsForRound(r));
+    summoningRef.current = false;
+    setEagleWord(null);
+    setRound(level);
+    const types = pickColorsForRound(level);
+    setRoundTypes(types);
+    setFeathers(makeRound(types, feathersPerColor(level)));
     setLives(LIVES);
-    setTimeLeft(timerForRound(round));
+    setTimeLeft(timerForRound(level));
     setPhase("playing");
     setMood("idle");
     setMascotMsg(undefined);
@@ -402,10 +419,42 @@ export function FeatherSortGame() {
         <div className="forest-ground" />
       </div>
 
+      {phase === "levelselect" ? (
+        <div className="sort-levelselect">
+          <span className="kicker">
+            <Sparkles aria-hidden className="h-4 w-4" />
+            Feather Match
+          </span>
+          <h1 className="h-display text-3xl">
+            <span className="h-gradient">Choose your challenge!</span>
+          </h1>
+          <p className="sort-levelselect-sub">
+            Harder levels have more feathers to sort and less time.
+          </p>
+          <div className="sort-levelselect-grid">
+            {SORT_LEVELS.map((lv) => (
+              <button
+                key={lv.id}
+                type="button"
+                onClick={() => startLevel(lv.id)}
+                className={`sort-level-card ${round === lv.id ? "is-current" : ""}`}
+              >
+                <span className="sort-level-emoji" aria-hidden>{lv.emoji}</span>
+                <span className="sort-level-label">{lv.label}</span>
+                <span className="sort-level-meta">
+                  {lv.nests} nests · {lv.nests * lv.perColor} feathers · {lv.seconds}s
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {phase !== "levelselect" ? (
       <header className="sort-hud">
         <span className="kicker">
           <Sparkles aria-hidden className="h-4 w-4" />
-          Round {round}
+          {levelConfig(round).emoji} {levelConfig(round).label}
         </span>
         <h1 className="h-display text-2xl">
           <span className="h-gradient">Match the feathers</span>
@@ -426,6 +475,7 @@ export function FeatherSortGame() {
           </div>
         </div>
       </header>
+      ) : null}
 
       {phase === "playing" ? (
         <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
