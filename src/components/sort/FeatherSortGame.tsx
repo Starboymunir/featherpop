@@ -19,6 +19,7 @@ import { FEATHER_META, FEATHER_ORDER } from "@/lib/levels";
 import type { FeatherType } from "@/lib/missions";
 import { pickKeyWord } from "@/lib/sort-words";
 import { useActiveChild } from "@/lib/use-active-child";
+import { explorerLevel } from "@/lib/explorer-level";
 import { awardFeatherPopAction } from "@/lib/child-progress-actions";
 import { pickEagleWordAction } from "@/lib/park-hunt-actions";
 import { useNavGuard } from "@/lib/use-nav-guard";
@@ -133,20 +134,27 @@ function makeRound(types: FeatherType[], perColor: number): FeatherInstance[] {
 
 export function FeatherSortGame() {
   const router = useRouter();
-  const { activeChildId } = useActiveChild();
+  const { activeChildId, progress } = useActiveChild();
 
-  const [round, setRound] = useState(1);
+  // Adaptive difficulty: higher Explorer Levels START at a harder round so the
+  // game never feels trivial to kids who've advanced. Gentle ramp, capped.
+  const startRound = useMemo(
+    () => 1 + Math.min(4, Math.floor(explorerLevel(progress.wordsFound ?? 0) / 3)),
+    [progress.wordsFound],
+  );
+
+  const [round, setRound] = useState(startRound);
   // Color subset re-rolled on every round (random each time, NOT
   // index-based like before).
   const [roundTypes, setRoundTypes] = useState<FeatherType[]>(() =>
-    pickColorsForRound(1),
+    pickColorsForRound(startRound),
   );
 
   const [feathers, setFeathers] = useState<FeatherInstance[]>(() =>
-    makeRound(roundTypes, feathersPerColor(1)),
+    makeRound(roundTypes, feathersPerColor(startRound)),
   );
   const [lives, setLives] = useState(LIVES);
-  const [timeLeft, setTimeLeft] = useState(() => timerForRound(1));
+  const [timeLeft, setTimeLeft] = useState(() => timerForRound(startRound));
   const [phase, setPhase] = useState<Phase>("playing");
   const [activeId, setActiveId] = useState<string | null>(null);
   const [wrongPulse, setWrongPulse] = useState<FeatherType | null>(null);
