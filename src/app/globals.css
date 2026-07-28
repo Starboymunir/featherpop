@@ -4233,7 +4233,10 @@ a { color: inherit; }
 .sort-board-horizontal {
   grid-template-rows: 1fr;
   grid-template-columns: 3fr 2fr;
-  min-height: calc(100dvh - 200px);
+  /* Fit within the viewport minus the header + bottom nav so the board never
+     scrolls. Fixed height (not min-height) so content can't push it taller. */
+  height: calc(100dvh - 250px);
+  min-height: 300px;
   gap: 0.25rem;
   padding: 0.25rem;
 }
@@ -4242,13 +4245,13 @@ a { color: inherit; }
     grid-template-columns: 1.85fr 1fr;
     gap: 0.5rem;
     padding: 0.5rem;
-    min-height: calc(100dvh - 220px);
+    height: calc(100dvh - 260px);
   }
 }
 .sort-board-scatter {
   position: relative;
   height: 100%;
-  min-height: 320px;
+  min-height: 0;
 }
 .sort-feather {
   position: absolute;
