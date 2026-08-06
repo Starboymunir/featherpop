@@ -68,6 +68,9 @@ export function EggWidget({ compact = false }: { compact?: boolean }) {
             {hatchedCount === 1 ? "" : "s"} hatched
           </p>
         ) : null}
+        <span className="egg-widget-cta">
+          🦩 View hatched creatures →
+        </span>
       </div>
     </Link>
   );

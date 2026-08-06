@@ -84,14 +84,16 @@ interface SortLevel {
   nests: number; // 2..4
   perColor: number; // feathers of each color
   seconds: number;
+  reward: number; // feathers earned for winning this level
 }
 // Nests are fixed at 3 so the whole board always fits a phone screen with no
-// scrolling — difficulty comes purely from denser feathers + less time.
+// scrolling — difficulty comes purely from denser feathers + less time. Each
+// level pays more feathers so the reward is clear before you pick.
 const SORT_LEVELS: SortLevel[] = [
-  { id: 1, label: "Easy",   emoji: "🌱", nests: 3, perColor: 2, seconds: 30 },
-  { id: 2, label: "Medium", emoji: "⭐", nests: 3, perColor: 3, seconds: 26 },
-  { id: 3, label: "Hard",   emoji: "🔥", nests: 3, perColor: 4, seconds: 22 },
-  { id: 4, label: "Expert", emoji: "👑", nests: 3, perColor: 6, seconds: 18 },
+  { id: 1, label: "Easy",   emoji: "🌱", nests: 3, perColor: 2, seconds: 30, reward: 1 },
+  { id: 2, label: "Medium", emoji: "⭐", nests: 3, perColor: 3, seconds: 26, reward: 2 },
+  { id: 3, label: "Hard",   emoji: "🔥", nests: 3, perColor: 4, seconds: 22, reward: 3 },
+  { id: 4, label: "Expert", emoji: "👑", nests: 3, perColor: 6, seconds: 15, reward: 5 },
 ];
 function levelConfig(level: number): SortLevel {
   return SORT_LEVELS[Math.max(0, Math.min(SORT_LEVELS.length - 1, level - 1))];
@@ -397,7 +399,7 @@ export function FeatherSortGame() {
     if (!eagleWord) return;
     try {
       if (activeChildId)
-        await awardFeatherPopAction(Math.max(1, Math.floor(roundTypes.length / 2)));
+        await awardFeatherPopAction(levelConfig(round).reward);
     } catch {}
     // Carry the eagle's word through the URL — it's the single source of
     // truth the whole way: /park-hunt → /scan → /park-hunt/station/N.
@@ -431,7 +433,8 @@ export function FeatherSortGame() {
             <span className="h-gradient">Choose your challenge!</span>
           </h1>
           <p className="sort-levelselect-sub">
-            Harder levels have more feathers to sort and less time.
+            Harder levels have more feathers to sort and less time — but pay
+            out more feathers when you win!
           </p>
           <div className="sort-levelselect-grid">
             {SORT_LEVELS.map((lv) => (
@@ -443,8 +446,11 @@ export function FeatherSortGame() {
               >
                 <span className="sort-level-emoji" aria-hidden>{lv.emoji}</span>
                 <span className="sort-level-label">{lv.label}</span>
+                <span className="sort-level-reward">
+                  🪶 Win {lv.reward} {lv.reward === 1 ? "feather" : "feathers"}
+                </span>
                 <span className="sort-level-meta">
-                  {lv.nests} nests · {lv.nests * lv.perColor} feathers · {lv.seconds}s
+                  {lv.nests * lv.perColor} feathers to sort · {lv.seconds}s
                 </span>
               </button>
             ))}

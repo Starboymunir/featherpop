@@ -337,7 +337,14 @@ export interface WordRecordResult {
  * egg, and if the egg crosses the hatch threshold, rolls a character and
  * spawns a fresh random-color egg.
  */
-export async function recordWordsFoundAction(count: number): Promise<WordRecordResult | null> {
+export async function recordWordsFoundAction(
+  count: number,
+  // Feathers to award for these words. Defaults to `count` (1 word = 1
+  // feather). Pass 0 when the caller awards feathers on its own economy
+  // (e.g. Letter Pop's "5 words = 1 feather"). The Golden Feather bonus is
+  // always applied on top, regardless of this value.
+  feathersToAward?: number,
+): Promise<WordRecordResult | null> {
   if (!Number.isFinite(count) || count <= 0) return null;
   const childId = await getActiveChildId();
   if (!childId) return null;
@@ -433,7 +440,7 @@ export async function recordWordsFoundAction(count: number): Promise<WordRecordR
     ...prev,
     featherPop:
       prev.featherPop +
-      Math.floor(count) + // 1 word = 1 feather
+      (feathersToAward ?? Math.floor(count)) + // default: 1 word = 1 feather
       (goldenFeatherJustEarned ? GOLDEN_FEATHER_BONUS : 0),
     wordsFound: nextWords,
     wordsThisMonth,

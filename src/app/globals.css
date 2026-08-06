@@ -1656,6 +1656,25 @@ a { color: inherit; }
   margin: 0;
   font-size: 0.95rem;
 }
+.wordshake-intro-rules {
+  list-style: none;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+  max-width: 32ch;
+  text-align: left;
+}
+.wordshake-intro-rules li {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  background: color-mix(in srgb, var(--purple) 7%, white);
+  border-radius: 12px;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.9rem;
+  line-height: 1.3;
+}
 .wordshake-intro-play {
   margin: 0.75rem 0 0.25rem;
 }
@@ -4353,7 +4372,16 @@ a { color: inherit; }
   font-size: 1.1rem;
   color: var(--ink);
 }
-.sort-level-meta { font-size: 0.72rem; font-weight: 700; color: var(--ink-soft); }
+.sort-level-reward {
+  font-family: var(--font-baloo), sans-serif;
+  font-weight: 800;
+  font-size: 0.82rem;
+  color: var(--ink);
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #fff3b0, var(--gold));
+}
+.sort-level-meta { font-size: 0.72rem; font-weight: 700; color: var(--ink-soft); margin-top: 0.1rem; }
 .sort-nest {
   position: relative;
   display: grid;
@@ -8184,6 +8212,19 @@ a.prize-card-spin-link .prize-card-cta {
   color: var(--magenta);
   margin: 0.75rem 0 0;
 }
+.parkhunt-passed-badge {
+  display: inline-block;
+  margin: 0 auto 0.5rem;
+  padding: 0.35rem 1rem;
+  border-radius: 999px;
+  font-family: var(--font-baloo), sans-serif;
+  font-weight: 900;
+  font-size: 1.05rem;
+  color: var(--ink);
+  background: linear-gradient(135deg, #fff3b0, var(--gold));
+  box-shadow: 0 10px 24px rgba(255, 209, 74, 0.5);
+  animation: parkhunt-target-pulse 1.2s ease-in-out infinite;
+}
 
 .parkhunt-station-result {
   display: grid;
@@ -10072,6 +10113,26 @@ a.prize-card-spin-link .prize-card-cta {
   color: var(--ink-soft);
 }
 .egg-widget-meta strong { color: var(--magenta); font-weight: 800; }
+.egg-widget-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  width: max-content;
+  margin-top: 0.35rem;
+  padding: 0.28rem 0.7rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--purple), var(--magenta));
+  color: #fff;
+  font-family: var(--font-baloo), sans-serif;
+  font-weight: 800;
+  font-size: 0.78rem;
+}
+.progress-view-creatures {
+  width: 100%;
+  max-width: 560px;
+  margin: 0.75rem auto 0;
+  justify-content: center;
+}
 
 /* --- Egg crack reveal overlay --- */
 .egg-crack-overlay {

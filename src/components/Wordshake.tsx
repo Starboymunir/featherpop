@@ -166,10 +166,13 @@ function comboMultiplier(combo: number): number {
   return Math.min(4, 1 + Math.floor(Math.max(0, combo - 1) / 2));
 }
 
-// Session sub-goal: every NEST_SIZE words "fills a nest" for a bonus — gives
-// each round a visible, quick-to-reach target and a reward rhythm.
-const NEST_SIZE = 6;
-const NEST_BONUS = 5;
+// Feathers are simple + understandable: every WORDS_PER_FEATHER words = 1
+// feather. Points (the score) are separate and drive the high score.
+const WORDS_PER_FEATHER = 5;
+// Session sub-goal: every NEST_SIZE words "fills a nest" — a quick celebration
+// beat (points + fanfare), NOT a feather bonus, so the feather rule stays "5
+// words = 1 feather".
+const NEST_SIZE = 5;
 
 function areAdjacent(a: number, b: number) {
   const ra = Math.floor(a / GRID_SIZE);
@@ -277,7 +280,7 @@ export function Wordshake({
     awardChainRef.current = awardChainRef.current.then(async () => {
       try {
         if (words > 0) {
-          const recRes = await recordWordsFoundAction(words);
+          const recRes = await recordWordsFoundAction(words, 0);
           if (recRes?.hatched) setHatched(recRes.hatched);
           else if (recRes?.crackJustCrossed) setCrackMilestone(recRes.crackJustCrossed);
           if (recRes?.goldenFeatherJustEarned) {
@@ -484,15 +487,20 @@ export function Wordshake({
       fanfare();
     }
 
-    if (nestComplete) {
+    // FEATHERS: every 5 words = 1 feather. Simple + explained on the intro.
+    const featherDelta =
+      Math.floor(foundCountAfter / WORDS_PER_FEATHER) -
+      Math.floor(found.length / WORDS_PER_FEATHER);
+
+    if (featherDelta > 0) {
       setMood("wow");
-      setMascotMessage(`🪺 NEST FULL! +${NEST_BONUS} bonus feathers!`);
+      setMascotMessage(`🪶 +1 feather! (${foundCountAfter} words) — +${pts} points`);
     } else if (isLucky) {
       setMood("wow");
       setMascotMessage(`✨ LUCKY WORD! "${w}" — +${pts} points!`);
     } else if (isMagic) {
       setMood("wow");
-      setMascotMessage(`MAGIC WORD! "${w}" — bonus FeatherPop!`);
+      setMascotMessage(`MAGIC WORD! "${w}" — +${pts} points!`);
     } else if (mult >= 2) {
       setMood("wow");
       setMascotMessage(`🔥 ${mult}× combo! "${w}" — +${pts} points!`);
@@ -505,82 +513,59 @@ export function Wordshake({
     }
     setMascotNudge((n) => n + 1);
 
-    // Per the client spec: 1 word = 1 feather. Floor on top:
-    // every accepted word ALWAYS earns at least 1 feather, plus 1 more
-    // for every 4 points the word's worth (so longer words still feel
-    // more rewarding). Magic word from the eagle = +5 bonus.
-    //
-    // Earlier this used floor(pts/4) which returned 0 for 3-4 letter
-    // words — the kid found the word but nothing landed on the server,
-    // and the egg-cracking counter never moved.
-    // Feathers scale off the BASE word (not the flashy points) so the economy
-    // stays sane, with a small bonus for combos + lucky words. Capped.
-    let award = Math.max(1, Math.floor(base / 4)) + (mult - 1) + (isLucky ? 2 : 0);
-    if (isMagic) {
-      award += 5;
+    // EVERY accepted word advances the egg (recorded, batched); feathers only
+    // land on the 5-word milestone (featherDelta is 0 or 1). Points are the
+    // separate score number. Show the feather RIGHT NOW (optimistic).
+    if (featherDelta > 0) {
+      setSessionPop((n) => n + featherDelta);
+      pendingAwardsRef.current += featherDelta;
     }
-    award = Math.min(12, award);
-    if (nestComplete) award += NEST_BONUS; // nest bonus stacks on top
-    if (award > 0) {
-      // Show it RIGHT NOW so the kid sees the reward (optimistic).
-      setSessionPop((n) => n + award);
-      pendingAwardsRef.current += award;
-      // Persist on the server. We BATCH per-word calls in a short
-      // window because firing recordWordsFoundAction(1) once per word
-      // causes lost-update races on Clerk metadata — read-modify-write
-      // calls overlap and overwrite each other, so a kid who earns 7
-      // feathers in a round might only see +1 on the server.
-      //
-      // pendingWordsRef / pendingBonusRef accumulate the count of
-      // words + bonus feathers since the last flush. A 500ms debounce
-      // collapses bursts of taps into one atomic call.
-      const baseFeather = 1;
-      const bonus = Math.max(0, award - baseFeather);
-      pendingWordsRef.current += 1;
-      pendingBonusRef.current += bonus;
+    // Batch per-word calls in a short window — firing per word causes
+    // lost-update races on Clerk metadata. pendingWordsRef = egg words,
+    // pendingBonusRef = milestone feathers.
+    pendingWordsRef.current += 1;
+    pendingBonusRef.current += featherDelta;
 
-      if (flushTimerRef.current !== null) {
-        window.clearTimeout(flushTimerRef.current);
-      }
-      flushTimerRef.current = window.setTimeout(() => {
-        const words = pendingWordsRef.current;
-        const bonusTotal = pendingBonusRef.current;
-        pendingWordsRef.current = 0;
-        pendingBonusRef.current = 0;
-        flushTimerRef.current = null;
+    if (flushTimerRef.current !== null) {
+      window.clearTimeout(flushTimerRef.current);
+    }
+    flushTimerRef.current = window.setTimeout(() => {
+      const words = pendingWordsRef.current;
+      const bonusTotal = pendingBonusRef.current;
+      pendingWordsRef.current = 0;
+      pendingBonusRef.current = 0;
+      flushTimerRef.current = null;
 
-        // Serialize via a single promise chain so this flush always
-        // sees the result of the previous one — guarantees no overlap
-        // between concurrent record/award calls.
-        awardChainRef.current = awardChainRef.current.then(async () => {
-          try {
-            if (words > 0) {
-              const recRes = await recordWordsFoundAction(words);
-              if (recRes?.hatched) setHatched(recRes.hatched);
-              else if (recRes?.crackJustCrossed) setCrackMilestone(recRes.crackJustCrossed);
-              if (recRes?.goldenFeatherJustEarned) {
-                setGoldenFeather(true);
-              }
-              if (recRes?.leveledUpTo) setLevelUp(recRes.leveledUpTo);
+      awardChainRef.current = awardChainRef.current.then(async () => {
+        try {
+          if (words > 0) {
+            // feathers=0: egg/word progress only. Feathers come from the
+            // 5-word milestone via awardFeatherPopAction below.
+            const recRes = await recordWordsFoundAction(words, 0);
+            if (recRes?.hatched) setHatched(recRes.hatched);
+            else if (recRes?.crackJustCrossed) setCrackMilestone(recRes.crackJustCrossed);
+            if (recRes?.goldenFeatherJustEarned) {
+              setGoldenFeather(true);
             }
-            if (bonusTotal > 0) await awardFeatherPopAction(bonusTotal);
-          } catch (err) {
-            console.warn("[wordshake] award failed:", err);
+            if (recRes?.leveledUpTo) setLevelUp(recRes.leveledUpTo);
           }
-        });
-
-        // Refresh the layout once after the chain settles so BrandBar /
-        // /rewards / HomeStats pick up the new total.
-        if (refreshTimerRef.current !== null) {
-          window.clearTimeout(refreshTimerRef.current);
+          if (bonusTotal > 0) await awardFeatherPopAction(bonusTotal);
+        } catch (err) {
+          console.warn("[wordshake] award failed:", err);
         }
-        refreshTimerRef.current = window.setTimeout(() => {
-          router.refresh();
-          refreshTimerRef.current = null;
-          pendingAwardsRef.current = 0;
-        }, 1200);
-      }, 500);
-    }
+      });
+
+      // Refresh the layout once after the chain settles so BrandBar /
+      // /rewards / HomeStats pick up the new total.
+      if (refreshTimerRef.current !== null) {
+        window.clearTimeout(refreshTimerRef.current);
+      }
+      refreshTimerRef.current = window.setTimeout(() => {
+        router.refresh();
+        refreshTimerRef.current = null;
+        pendingAwardsRef.current = 0;
+      }, 1200);
+    }, 500);
   }
 
   function newGame() {
@@ -679,9 +664,18 @@ export function Wordshake({
             )}
           </h2>
           <p className="wordshake-intro-sub">
-            Tap connected letters to spell words. You have 2 minutes — every
-            word scores points, and points become FeatherPop.
+            Tap connected letters to spell words. You have 2 minutes!
           </p>
+          <ul className="wordshake-intro-rules">
+            <li>
+              <span aria-hidden>🔤</span> Longer words &amp; combos score more{" "}
+              <strong>points</strong> — chase the high score!
+            </li>
+            <li>
+              <span aria-hidden>🪶</span> Every <strong>5 words</strong> you
+              spell earns <strong>1 feather</strong>.
+            </li>
+          </ul>
           {best > 0 ? (
             <p className="wordshake-best-line">
               🏆 Best score: <strong>{best}</strong> — can you beat it?
@@ -965,9 +959,9 @@ export function Wordshake({
               <div className="wordshake-newbest">🏆 NEW HIGH SCORE!</div>
             ) : null}
             Time! You scored <strong>{totalPoints}</strong> points and{" "}
-            {Math.floor(totalPoints / 4) > 0
-              ? `earned ${Math.floor(totalPoints / 4)} FeatherPop.`
-              : "no FeatherPop this time."}
+            {sessionPop > 0
+              ? `earned ${sessionPop} ${sessionPop === 1 ? "feather" : "feathers"} (${found.length} words).`
+              : `found ${found.length} ${found.length === 1 ? "word" : "words"} — 5 words = 1 feather!`}
             {best > 0 ? (
               <div className="mt-1 text-sm font-bold">
                 Best score: {best}

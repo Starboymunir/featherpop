@@ -35,7 +35,7 @@ export function StationGrid({
   locked?: boolean;
 }) {
   const router = useRouter();
-  const [phase, setPhase] = useState<"finding" | "limit">("finding");
+  const [phase, setPhase] = useState<"finding" | "limit" | "passed">("finding");
   const [confettiKey, setConfettiKey] = useState(0);
   const [wrongTap, setWrongTap] = useState<string | null>(null);
   const [hint, setHint] = useState<string | null>(null);
@@ -93,17 +93,18 @@ export function StationGrid({
         setSubmitting(false);
         return;
       }
-      // Show a hatch/crack reveal first (if any); its close continues to
-      // Letter Pop. Otherwise go straight there.
+      // Show a hatch/crack reveal first (if any); its close continues to the
+      // "passed" screen. Otherwise go straight to the passed screen, which
+      // states the +10 feather reward before Letter Pop.
       if (res && res.ok && res.hatched) {
         setHatched(res.hatched);
       } else if (res && res.ok && res.crackJustCrossed) {
         setCrackMilestone(res.crackJustCrossed);
       } else {
-        window.setTimeout(goLetterPop, 700);
+        window.setTimeout(() => setPhase("passed"), 650);
       }
     },
-    [word, submitting, stationId, goLetterPop],
+    [word, submitting, stationId],
   );
 
   // No word in the URL → the child hasn't been handed one by the eagle.
@@ -187,15 +188,49 @@ export function StationGrid({
     );
   }
 
+  // Passed! State the +10 feather reward, then on to Letter Pop.
+  if (phase === "passed") {
+    return (
+      <div className="parkhunt-station parkhunt-station-empty">
+        <Confetti trigger={confettiKey} pieces={90} />
+        <span className="parkhunt-passed-badge">🪶 +10 feathers!</span>
+        <h2 className="h-display text-3xl">
+          <span className="h-gradient">You passed the Park Hunt! 🎉</span>
+        </h2>
+        <p>
+          You found <strong>{word}</strong> and earned{" "}
+          <strong>10 feathers</strong>. Now spell it in Letter Pop for even
+          more!
+        </p>
+        <div className="parkhunt-station-actions">
+          <button
+            type="button"
+            onClick={goLetterPop}
+            className="btn btn-gold btn-lg btn-pulse"
+          >
+            <Sparkles aria-hidden className="h-5 w-5" />
+            Play Letter Pop with {word}
+          </button>
+          <Link href="/" className="btn btn-ghost">
+            Home
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   // Reveal the 20 words; the eagle's word is highlighted. Tap it → Letter Pop.
   return (
     <div className="parkhunt-station">
       <Confetti trigger={confettiKey} pieces={70} />
 
       {hatched ? (
-        <EggHatchReveal hatched={hatched} onClose={goLetterPop} />
+        <EggHatchReveal hatched={hatched} onClose={() => setPhase("passed")} />
       ) : crackMilestone ? (
-        <EggCrackReveal {...crackMilestone} onClose={goLetterPop} />
+        <EggCrackReveal
+          {...crackMilestone}
+          onClose={() => setPhase("passed")}
+        />
       ) : null}
 
       <header className="parkhunt-station-hud">

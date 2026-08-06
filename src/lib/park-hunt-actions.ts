@@ -16,7 +16,10 @@ import {
   todayKey,
   weekKey,
 } from "@/lib/park-hunt";
-import { recordWordsFoundAction } from "@/lib/child-progress-actions";
+import {
+  awardFeatherPopAction,
+  recordWordsFoundAction,
+} from "@/lib/child-progress-actions";
 import { getGlobalWordBank } from "@/lib/global-content";
 import { tryConsumePlay } from "@/lib/play-limits";
 
@@ -340,6 +343,7 @@ export async function findWordAtStationAction(args: {
 }): Promise<
   | {
       ok: true;
+      reward: number;
       hatched?: import("@/lib/child-profile").HatchedEntry | null;
       crackJustCrossed?: {
         level: number;
@@ -384,7 +388,15 @@ export async function findWordAtStationAction(args: {
   } catch (err) {
     console.warn("[park-hunt] recordWordsFound failed", err);
   }
-  return { ok: true, hatched, crackJustCrossed };
+  // Big incentive to finish the full Park Hunt: 10 feathers per correct find.
+  // recordWordsFound already gave 1 (+ egg progress), so top up by 9.
+  const PARK_HUNT_REWARD = 10;
+  try {
+    await awardFeatherPopAction(PARK_HUNT_REWARD - 1);
+  } catch (err) {
+    console.warn("[park-hunt] bonus award failed", err);
+  }
+  return { ok: true, reward: PARK_HUNT_REWARD, hatched, crackJustCrossed };
 }
 
 /** Server-side helper for the station route: get the 20-word list for a station. */

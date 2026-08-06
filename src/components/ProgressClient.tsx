@@ -87,6 +87,11 @@ export function ProgressClient() {
           to the collection book of hatched friends. */}
       <EggWidget />
 
+      <Link href="/collection-book" className="btn btn-gold btn-lg progress-view-creatures">
+        🦩 View Hatched Creatures
+        <ChevronRight aria-hidden className="h-5 w-5" />
+      </Link>
+
       {/* Golden Feather hero stage */}
       <section className="progress-golden-v2">
         <div className="progress-golden-glow" aria-hidden />
